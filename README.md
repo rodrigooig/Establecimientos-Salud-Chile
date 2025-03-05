@@ -71,6 +71,34 @@ Esta aplicación analiza los datos abiertos del Ministerio de Salud de Chile sob
 
 Los datos utilizados en esta aplicación son datos abiertos del Ministerio de Salud de Chile, disponibles en el [Portal de Datos Abiertos](https://datos.gob.cl/).
 
+## Proceso de Limpieza de Datos
+
+El script `clean_data.py` implementa un proceso de normalización y limpieza de datos que incluye:
+
+1. **Normalización de texto**:
+   - Eliminación de espacios adicionales
+   - Normalización de acentos y caracteres especiales
+   - Estandarización de mayúsculas/minúsculas en palabras clave
+
+2. **Normalización de columnas específicas**:
+   - Nombres de establecimientos
+   - Nombres de regiones y comunas
+   - Tipos de establecimientos
+   - Sistemas de salud
+   - Niveles de atención y complejidad
+
+3. **Proceso de ejecución**:
+   ```bash
+   python clean_data.py
+   ```
+   El script lee el archivo fuente (`establecimientos_20250225.csv`), aplica las normalizaciones y genera un archivo limpio (`establecimientos_cleaned.csv`).
+
+4. **Resultados**:
+   - Estandarización de nombres de regiones (ej: "Región De Los Lagos")
+   - Normalización de preposiciones y artículos
+   - Corrección de inconsistencias en mayúsculas/minúsculas
+   - Eliminación de duplicados y espacios innecesarios
+
 ## Desarrollo
 
 Para contribuir al desarrollo:
