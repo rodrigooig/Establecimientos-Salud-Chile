@@ -2,7 +2,7 @@
 
 Todas las modificaciones notables a este proyecto serán documentadas en este archivo.
 
-## [0.0.2] - 2024-02-25
+## [0.0.2] - 2025-03-05
 
 ### Añadido
 - Mapa interactivo con Folium para visualizar la distribución geográfica de establecimientos
@@ -22,7 +22,7 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 - Limpieza de espacios y caracteres especiales
 - Optimización del proceso de carga de datos
 
-## [0.0.1] - 2024-02-24
+## [0.0.1] - 2025-03-05
 
 ### Añadido
 - Primera versión de la aplicación Streamlit
