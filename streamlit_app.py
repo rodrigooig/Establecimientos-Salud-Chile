@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import matplotlib
+import folium
+from streamlit_folium import folium_static
+from folium.plugins import MarkerCluster
 
 # Configurar matplotlib para usar una fuente que soporte caracteres especiales
 matplotlib.rcParams['font.family'] = 'DejaVu Sans'
@@ -33,10 +36,10 @@ def load_data():
     try:
         # Intentar primero con UTF-8
         try:
-            df = pd.read_csv('data/establecimientos_20250225.csv', sep=';', encoding='utf-8')
+            df = pd.read_csv('data/establecimientos_cleaned.csv', sep=';', encoding='utf-8')
         except UnicodeDecodeError:
             # Si falla, intentar con latin1
-            df = pd.read_csv('data/establecimientos_20250225.csv', sep=';', encoding='latin1')
+            df = pd.read_csv('data/establecimientos_cleaned.csv', sep=';', encoding='latin1')
             
         # Asegurarse de que las columnas de texto estén correctamente codificadas
         for col in df.select_dtypes(include=['object']).columns:
@@ -178,23 +181,72 @@ tab1, tab2, tab3, tab4 = st.tabs(["Distribución Geográfica", "Tipos de Estable
 with tab1:
     st.subheader("Distribución por Región")
     
-    if "RegionGlosa" in df_filtered.columns:
-        # Contar establecimientos por región
+    if "RegionGlosa" in df_filtered.columns and "TipoSistemaSaludGlosa" in df_filtered.columns:
+        # Crear una copia del DataFrame y agrupar los sistemas de salud
+        df_plot = df_filtered.copy()
+        df_plot['TipoSistemaSaludGlosa'] = df_plot['TipoSistemaSaludGlosa'].apply(
+            lambda x: x if x in ['Público', 'Privado'] else 'Otros'
+        )
+        
+        # Crear un DataFrame con el conteo por región y sistema de salud
+        region_sistema = pd.crosstab(
+            df_plot['RegionGlosa'], 
+            df_plot['TipoSistemaSaludGlosa'],
+            margins=False
+        ).reset_index()
+        
+        # Asegurar que todas las columnas existan
+        for col in ['Público', 'Privado', 'Otros']:
+            if col not in region_sistema.columns:
+                region_sistema[col] = 0
+        
+        # Reordenar las columnas para que Público y Privado aparezcan primero
+        cols = ['RegionGlosa', 'Público', 'Privado', 'Otros']
+        region_sistema = region_sistema[cols]
+        
+        # Calcular el total por región para ordenar
         region_counts = df_filtered['RegionGlosa'].value_counts().reset_index()
         region_counts.columns = ['Región', 'Cantidad']
         region_counts['Porcentaje'] = (region_counts['Cantidad'] / len(df_filtered) * 100).round(1)
+        
+        # Ordenar regiones por cantidad total y establecer el orden
+        regiones_ordenadas = region_counts['Región'].tolist()
+        region_sistema['RegionGlosa'] = pd.Categorical(
+            region_sistema['RegionGlosa'],
+            categories=regiones_ordenadas,
+            ordered=True
+        )
+        region_sistema = region_sistema.sort_values('RegionGlosa', ascending=False)
         
         # Mostrar gráfico y tabla lado a lado
         col1, col2 = st.columns([3, 2])
         
         with col1:
-            fig, ax = plt.subplots(figsize=(10, 8))
+            fig, ax = plt.subplots(figsize=(12, 10))
             # Configurar el gráfico para mostrar correctamente los acentos
             plt.rcParams['font.family'] = 'DejaVu Sans'
-            sns.barplot(x='Cantidad', y='Región', data=region_counts, ax=ax)
-            ax.set_title('Establecimientos por Región', fontsize=14)
+            
+            # Definir colores para cada tipo de sistema
+            colors = ['#2ecc71', '#e74c3c', '#95a5a6']  # Verde para Público, Rojo para Privado, Gris para Otros
+            
+            # Crear el gráfico de barras apiladas
+            bottom = np.zeros(len(region_sistema))
+            
+            for idx, col in enumerate(['Público', 'Privado', 'Otros']):
+                ax.barh(region_sistema['RegionGlosa'], 
+                       region_sistema[col], 
+                       left=bottom, 
+                       color=colors[idx], 
+                       label=col)
+                bottom += region_sistema[col]
+            
+            ax.set_title('Establecimientos por Región y Sistema de Salud', fontsize=14)
             ax.set_xlabel('Cantidad', fontsize=12)
             ax.set_ylabel('Región', fontsize=12)
+            
+            # Añadir leyenda en una posición adecuada
+            plt.legend(title='Sistema de Salud', bbox_to_anchor=(1.05, 1), loc='upper left')
+            
             # Asegurar que las etiquetas del eje y se muestren completas
             plt.tight_layout()
             st.pyplot(fig)
@@ -203,7 +255,80 @@ with tab1:
             st.dataframe(region_counts, hide_index=True, 
                         column_config={"Porcentaje": st.column_config.NumberColumn(format="%.1f%%")})
     else:
-        st.warning("No se encontró la columna 'RegionGlosa' en los datos")
+        st.warning("No se encontraron las columnas necesarias en los datos")
+    
+    # Sección para el mapa
+    st.subheader("Distribución Geográfica de Establecimientos")
+    
+    if "Latitud" in df_filtered.columns and "Longitud" in df_filtered.columns:
+        # Filtrar datos con coordenadas válidas
+        map_data = df_filtered.dropna(subset=['Latitud', 'Longitud']).copy()
+        
+        # Verificar si hay datos con coordenadas
+        if len(map_data) > 0:
+            # Crear mapa centrado en Chile
+            m = folium.Map(location=[-33.45694, -70.64827], zoom_start=5)
+            
+            # Agrupar marcadores para mejor rendimiento
+            marker_cluster = MarkerCluster().add_to(m)
+            
+            # Calcular frecuencia por ubicación para definir el tamaño del círculo
+            map_data['location'] = map_data.apply(lambda row: (row['Latitud'], row['Longitud']), axis=1)
+            location_counts = map_data['location'].value_counts().reset_index()
+            location_counts.columns = ['coords', 'count']
+            
+            # Normalizar tamaños para los círculos entre 5 y 20
+            max_count = location_counts['count'].max()
+            min_count = location_counts['count'].min()
+            
+            # Función para calcular el tamaño del círculo basado en la frecuencia
+            def get_radius(count):
+                if max_count == min_count:
+                    return 8
+                return 5 + (count - min_count) * 15 / (max_count - min_count)
+            
+            # Añadir marcadores al mapa
+            for _, row in location_counts.iterrows():
+                lat, lon = row['coords']
+                count = row['count']
+                popup_text = f"Cantidad: {count} establecimiento(s)"
+                
+                # Obtener color basado en el tipo de sistema de salud si está presente
+                if "TipoSistemaSaludGlosa" in map_data.columns:
+                    sistemas = map_data[(map_data['Latitud'] == lat) & (map_data['Longitud'] == lon)]['TipoSistemaSaludGlosa'].value_counts()
+                    sistema_principal = sistemas.index[0] if not sistemas.empty else "Desconocido"
+                    
+                    # Asignar color según el sistema
+                    color = 'blue'  # Default
+                    if sistema_principal == 'Público':
+                        color = 'green'
+                    elif sistema_principal == 'Privado':
+                        color = 'red'
+                    elif sistema_principal == 'Fuerzas Armadas y de Orden y Seguridad Pública':
+                        color = 'orange'
+                    
+                    popup_text += f"<br>Sistema principal: {sistema_principal}"
+                else:
+                    color = 'blue'
+                
+                # Añadir círculo al mapa
+                folium.CircleMarker(
+                    location=[lat, lon],
+                    radius=get_radius(count),
+                    popup=popup_text,
+                    color=color,
+                    fill=True,
+                    fill_color=color,
+                    fill_opacity=0.7
+                ).add_to(marker_cluster)
+            
+            # Mostrar el mapa en Streamlit
+            st.markdown("El tamaño de los círculos representa la cantidad de establecimientos en esa ubicación.")
+            folium_static(m, width=1000, height=600)
+        else:
+            st.warning("No hay datos con coordenadas geográficas válidas para mostrar en el mapa.")
+    else:
+        st.warning("No se encontraron las columnas de coordenadas 'Latitud' y 'Longitud' en los datos.")
 
 # Tab 2: Tipos de Establecimientos
 with tab2:
@@ -332,7 +457,7 @@ st.markdown("""
 
 Desarrollado por: Rodrigo Muñoz Soto  
 📧 munozsoto.rodrigo@gmail.com | 🔗 [GitHub: rodrigooig](https://github.com/rodrigooig) | 💼 [LinkedIn](https://www.linkedin.com/in/munozsoto-rodrigo/)  
-Versión: 0.0.1
+Versión: 0.0.2
 """)
 st.markdown("""
 <style>
