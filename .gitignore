@@ -32,7 +32,6 @@ var/
 
 # Archivos de caché y temporales
 .cache/
-.streamlit/
 .ipynb_checkpoints
 *.log
 *.pot
@@ -70,8 +69,6 @@ Thumbs.db
 *.xlsx
 *.h5
 *.hdf5
-*.csv
-!data/establecimientos_cleaned.csv
 
 # Entornos virtuales
 .python-version
@@ -125,6 +122,7 @@ wheels/
 .vscode/
 *.swp
 *.swo
+.gitignore
 
 # OS specific files
 .DS_Store
