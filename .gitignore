@@ -68,7 +68,6 @@ Thumbs.db
 *.xlsx
 *.h5
 *.hdf5
-*.csv
 !establecimientos_truncado.csv
 
 # Entornos virtuales
