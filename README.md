@@ -10,7 +10,8 @@ Puedes acceder a la versión desplegada en Streamlit Cloud aquí: [Análisis de 
 
 Esta aplicación analiza los datos abiertos del Ministerio de Salud de Chile sobre establecimientos de salud en el país. Permite explorar:
 
-- Distribución geográfica por región
+- Distribución geográfica por región y sistema de salud
+- Visualización en mapa interactivo
 - Tipos de establecimientos
 - Niveles de atención y complejidad
 - Servicios de urgencia
@@ -19,8 +20,8 @@ Esta aplicación analiza los datos abiertos del Ministerio de Salud de Chile sob
 ## Características
 
 - 📊 **Visualizaciones interactivas**: Gráficos y tablas dinámicas
-- 🗺️ **Distribución geográfica**: Análisis por región
-- 🏥 **Categorización**: Por tipo de establecimiento y nivel de atención
+- 🗺️ **Distribución geográfica**: Análisis por región y mapa interactivo
+- 🏥 **Categorización**: Por tipo de establecimiento, sistema de salud y nivel de atención
 - 📱 **Responsive**: Adaptado a diferentes dispositivos
 - 💾 **Descarga de datos**: Posibilidad de descargar los resultados
 
@@ -29,6 +30,7 @@ Esta aplicación analiza los datos abiertos del Ministerio de Salud de Chile sob
 - Python 3.8+
 - Streamlit 1.27+
 - Pandas 1.5+
+- Folium 0.14+
 - Otras dependencias listadas en `requirements.txt`
 
 ## Instalación local
@@ -56,11 +58,12 @@ Esta aplicación analiza los datos abiertos del Ministerio de Salud de Chile sob
 ```
 .
 ├── streamlit_app.py       # Aplicación principal Streamlit
+├── clean_data.py         # Script para limpieza de datos
 ├── data/                  # Directorio de datos
-│   └── establecimientos_20250225.csv  # Datos de establecimientos
+│   └── establecimientos_cleaned.csv   # Datos normalizados y limpios
 ├── requirements.txt       # Dependencias del proyecto
 ├── packages.txt          # Paquetes del sistema necesarios
-├── runtime.txt          # Versión de Python para el despliegue
+├── CHANGELOG.md         # Registro de cambios
 └── README.md            # Documentación
 ```
 
@@ -95,4 +98,4 @@ Si tienes preguntas o sugerencias, no dudes en contactar al autor o abrir un iss
 
 ---
 
-Desarrollado con ❤️ para el análisis de establecimientos de salud en Chile | Versión 0.0.1 
+Desarrollado con ❤️ para el análisis de establecimientos de salud en Chile | Versión 0.0.2 

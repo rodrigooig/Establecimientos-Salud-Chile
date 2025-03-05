@@ -28,6 +28,7 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+*.ipynb
 
 # Archivos de caché y temporales
 .cache/
@@ -60,6 +61,7 @@ Thumbs.db
 .settings/
 *.sublime-workspace
 *.sublime-project
+.cursor/
 
 # Archivos de datos grandes y generados (excepto CSV específico)
 *.parquet
@@ -68,7 +70,8 @@ Thumbs.db
 *.xlsx
 *.h5
 *.hdf5
-!establecimientos_truncado.csv
+*.csv
+!data/establecimientos_cleaned.csv
 
 # Entornos virtuales
 .python-version
