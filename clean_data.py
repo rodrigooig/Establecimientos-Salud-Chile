@@ -67,7 +67,7 @@ def normalize_columns(df):
     return df
 
 def main():
-    input_file = 'data/establecimientos_20250225.csv'
+    input_file = 'data/establecimientos.csv'
     output_file = 'data/establecimientos_cleaned.csv'
     
     # Verificar si el archivo existe

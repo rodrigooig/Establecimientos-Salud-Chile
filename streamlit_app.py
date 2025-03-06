@@ -260,71 +260,130 @@ with tab1:
     # Sección para el mapa
     st.subheader("Distribución Geográfica de Establecimientos")
     
+    @st.cache_data
+    def procesar_datos_mapa(map_data):
+        """
+        Procesa los datos para preparar la visualización en el mapa.
+        Cachea el resultado para mejorar el rendimiento.
+        
+        Args:
+            map_data (pd.DataFrame): DataFrame con datos de establecimientos.
+        
+        Returns:
+            tuple: DataFrame con conteo de establecimientos por ubicación y datos procesados.
+        """
+        # Crear una columna con coordenadas como tupla (más eficiente que apply con lambda)
+        map_data = map_data.copy()
+        map_data['location'] = list(zip(map_data['Latitud'], map_data['Longitud']))
+        
+        # Calcular frecuencia por ubicación
+        location_counts = pd.DataFrame(map_data['location'].value_counts()).reset_index()
+        location_counts.columns = ['coords', 'count']
+        
+        return location_counts, map_data
+
+    def obtener_color_sistema(sistema_principal):
+        """Determina el color según el tipo de sistema de salud."""
+        if sistema_principal == 'Público':
+            return 'green'
+        elif sistema_principal == 'Privado':
+            return 'red'
+        return 'gray'  # Default para otros casos
+
+    def crear_texto_popup(establecimientos, count):
+        """
+        Crea el texto para el popup de cada marcador.
+        
+        Args:
+            establecimientos (pd.DataFrame): DataFrame con establecimientos en esa ubicación.
+            count (int): Cantidad de establecimientos.
+            
+        Returns:
+            tuple: Texto HTML para el popup y color a usar para el marcador.
+        """
+        popup_text = f"Cantidad: {count} establecimiento(s)"
+        
+        # Función auxiliar para limitar y formatear listas de texto
+        def formatear_lista(items, max_items=5):
+            if len(items) > max_items:
+                return "<br>".join(items[:max_items]) + f"<br>... y {len(items) - max_items} más"
+            return "<br>".join(items)
+        
+        # Añadir nombres de establecimientos
+        if 'EstablecimientoGlosa' in establecimientos.columns:
+            establecimientos_list = establecimientos['EstablecimientoGlosa'].unique()
+            establecimientos_text = formatear_lista(establecimientos_list)
+            popup_text += f"<br><br><b>Establecimientos: </b><br>{establecimientos_text}"
+        
+        # Añadir tipos de establecimiento
+        if 'TipoEstablecimientoGlosa' in establecimientos.columns:
+            tipos_establecimientos = establecimientos['TipoEstablecimientoGlosa'].unique()
+            if len(tipos_establecimientos) > 0:
+                tipos_text = formatear_lista(tipos_establecimientos)
+                popup_text += f"<br><br><b>Tipo(s) de establecimiento: </b><br>{tipos_text}"
+        
+        # Obtener color basado en el tipo de sistema de salud
+        color = 'gray'  # Default
+        if "TipoSistemaSaludGlosa" in establecimientos.columns:
+            sistemas = establecimientos['TipoSistemaSaludGlosa'].value_counts()
+            if not sistemas.empty:
+                sistema_principal = sistemas.index[0]
+                popup_text += f"<br><br><b>Sistema principal: </b><br>{sistema_principal}"
+                color = obtener_color_sistema(sistema_principal)
+        
+        return popup_text, color
+
+    def visualizar_mapa(map_data):
+        """
+        Crea y muestra un mapa interactivo con los establecimientos de salud.
+        
+        Args:
+            map_data (pd.DataFrame): DataFrame con los datos filtrados que contienen coordenadas válidas.
+        """
+        # Crear mapa centrado en Chile
+        m = folium.Map(location=[-33.45694, -70.64827], zoom_start=5)
+        
+        # Agrupar marcadores para mejor rendimiento
+        marker_cluster = MarkerCluster().add_to(m)
+        
+        # Procesar datos para el mapa (con caché para mejorar rendimiento)
+        location_counts, map_data_processed = procesar_datos_mapa(map_data)
+        
+        # Añadir marcadores al mapa
+        for _, row in location_counts.iterrows():
+            lat, lon = row['coords']
+            count = row['count']
+            
+            # Filtrar establecimientos en esta ubicación (usar loc para mayor eficiencia)
+            establecimientos = map_data_processed.loc[(map_data_processed['Latitud'] == lat) & 
+                                                (map_data_processed['Longitud'] == lon)]
+            
+            # Crear texto para popup y determinar color
+            popup_text, color = crear_texto_popup(establecimientos, count)
+            
+            # Añadir círculo al mapa con un radio fijo
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=8,
+                popup=popup_text,
+                color=color,
+                fill=True,
+                fill_color=color,
+                fill_opacity=0.7
+            ).add_to(marker_cluster)
+        
+        # Mostrar el mapa en Streamlit
+        st.markdown("Los colores de los círculos indican el tipo de sistema de salud: verde (público), rojo (privado), gris (otros).")
+        folium_static(m, width=1000, height=600)
+
+    # Verificar si hay columnas de coordenadas
     if "Latitud" in df_filtered.columns and "Longitud" in df_filtered.columns:
         # Filtrar datos con coordenadas válidas
         map_data = df_filtered.dropna(subset=['Latitud', 'Longitud']).copy()
         
         # Verificar si hay datos con coordenadas
         if len(map_data) > 0:
-            # Crear mapa centrado en Chile
-            m = folium.Map(location=[-33.45694, -70.64827], zoom_start=5)
-            
-            # Agrupar marcadores para mejor rendimiento
-            marker_cluster = MarkerCluster().add_to(m)
-            
-            # Calcular frecuencia por ubicación para definir el tamaño del círculo
-            map_data['location'] = map_data.apply(lambda row: (row['Latitud'], row['Longitud']), axis=1)
-            location_counts = map_data['location'].value_counts().reset_index()
-            location_counts.columns = ['coords', 'count']
-            
-            # Normalizar tamaños para los círculos entre 5 y 20
-            max_count = location_counts['count'].max()
-            min_count = location_counts['count'].min()
-            
-            # Función para calcular el tamaño del círculo basado en la frecuencia
-            def get_radius(count):
-                if max_count == min_count:
-                    return 8
-                return 5 + (count - min_count) * 15 / (max_count - min_count)
-            
-            # Añadir marcadores al mapa
-            for _, row in location_counts.iterrows():
-                lat, lon = row['coords']
-                count = row['count']
-                popup_text = f"Cantidad: {count} establecimiento(s)"
-                
-                # Obtener color basado en el tipo de sistema de salud si está presente
-                if "TipoSistemaSaludGlosa" in map_data.columns:
-                    sistemas = map_data[(map_data['Latitud'] == lat) & (map_data['Longitud'] == lon)]['TipoSistemaSaludGlosa'].value_counts()
-                    sistema_principal = sistemas.index[0] if not sistemas.empty else "Desconocido"
-                    
-                    # Asignar color según el sistema
-                    color = 'blue'  # Default
-                    if sistema_principal == 'Público':
-                        color = 'green'
-                    elif sistema_principal == 'Privado':
-                        color = 'red'
-                    elif sistema_principal == 'Fuerzas Armadas y de Orden y Seguridad Pública':
-                        color = 'orange'
-                    
-                    popup_text += f"<br>Sistema principal: {sistema_principal}"
-                else:
-                    color = 'blue'
-                
-                # Añadir círculo al mapa
-                folium.CircleMarker(
-                    location=[lat, lon],
-                    radius=get_radius(count),
-                    popup=popup_text,
-                    color=color,
-                    fill=True,
-                    fill_color=color,
-                    fill_opacity=0.7
-                ).add_to(marker_cluster)
-            
-            # Mostrar el mapa en Streamlit
-            st.markdown("El tamaño de los círculos representa la cantidad de establecimientos en esa ubicación.")
-            folium_static(m, width=1000, height=600)
+            visualizar_mapa(map_data)
         else:
             st.warning("No hay datos con coordenadas geográficas válidas para mostrar en el mapa.")
     else:
@@ -457,7 +516,7 @@ st.markdown("""
 
 Desarrollado por: Rodrigo Muñoz Soto  
 📧 munozsoto.rodrigo@gmail.com | 🔗 [GitHub: rodrigooig](https://github.com/rodrigooig) | 💼 [LinkedIn](https://www.linkedin.com/in/munozsoto-rodrigo/)  
-Versión: 0.0.2
+Versión: 0.0.3
 """)
 st.markdown("""
 <style>
