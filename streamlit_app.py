@@ -264,85 +264,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["Distribución Geográfica", "Tipos de Estable
 
 # Tab 1: Distribución Geográfica
 with tab1:
-    st.subheader("Distribución por Región")
-    
-    if "RegionGlosa" in df_filtered.columns and "TipoSistemaSaludGlosa" in df_filtered.columns:
-        # Crear una copia del DataFrame y agrupar los sistemas de salud
-        df_plot = df_filtered.copy()
-        df_plot['TipoSistemaSaludGlosa'] = df_plot['TipoSistemaSaludGlosa'].apply(
-            lambda x: x if x in ['Público', 'Privado'] else 'Otros'
-        )
-        
-        # Crear un DataFrame con el conteo por región y sistema de salud
-        region_sistema = pd.crosstab(
-            df_plot['RegionGlosa'], 
-            df_plot['TipoSistemaSaludGlosa'],
-            margins=False
-        ).reset_index()
-        
-        # Asegurar que todas las columnas existan
-        for col in ['Público', 'Privado', 'Otros']:
-            if col not in region_sistema.columns:
-                region_sistema[col] = 0
-        
-        # Reordenar las columnas para que Público y Privado aparezcan primero
-        cols = ['RegionGlosa', 'Público', 'Privado', 'Otros']
-        region_sistema = region_sistema[cols]
-        
-        # Calcular el total por región para ordenar
-        region_counts = df_filtered['RegionGlosa'].value_counts().reset_index()
-        region_counts.columns = ['Región', 'Cantidad']
-        region_counts['Porcentaje'] = (region_counts['Cantidad'] / len(df_filtered) * 100).round(1)
-        
-        # Ordenar regiones por cantidad total y establecer el orden
-        regiones_ordenadas = region_counts['Región'].tolist()
-        region_sistema['RegionGlosa'] = pd.Categorical(
-            region_sistema['RegionGlosa'],
-            categories=regiones_ordenadas,
-            ordered=True
-        )
-        region_sistema = region_sistema.sort_values('RegionGlosa', ascending=False)
-        
-        # Mostrar gráfico y tabla lado a lado
-        col1, col2 = st.columns([3, 2])
-        
-        with col1:
-            fig, ax = plt.subplots(figsize=(12, 10))
-            # Configurar el gráfico para mostrar correctamente los acentos
-            plt.rcParams['font.family'] = 'DejaVu Sans'
-            
-            # Definir colores para cada tipo de sistema
-            colors = ['#2ecc71', '#e74c3c', '#95a5a6']  # Verde para Público, Rojo para Privado, Gris para Otros
-            
-            # Crear el gráfico de barras apiladas
-            bottom = np.zeros(len(region_sistema))
-            
-            for idx, col in enumerate(['Público', 'Privado', 'Otros']):
-                ax.barh(region_sistema['RegionGlosa'], 
-                       region_sistema[col], 
-                       left=bottom, 
-                       color=colors[idx], 
-                       label=col)
-                bottom += region_sistema[col]
-            
-            ax.set_title('Establecimientos por Región y Sistema de Salud', fontsize=14)
-            ax.set_xlabel('Cantidad', fontsize=12)
-            ax.set_ylabel('Región', fontsize=12)
-            
-            # Añadir leyenda en una posición adecuada
-            plt.legend(title='Sistema de Salud', bbox_to_anchor=(1.05, 1), loc='upper left')
-            
-            # Asegurar que las etiquetas del eje y se muestren completas
-            plt.tight_layout()
-            st.pyplot(fig)
-        
-        with col2:
-            st.dataframe(region_counts, hide_index=True, height=600,
-                        column_config={"Porcentaje": st.column_config.NumberColumn(format="%.1f%%")})
-    else:
-        st.warning("No se encontraron las columnas necesarias en los datos")
-    
-    # Sección para el mapa
+    # Sección para el mapa (movida al principio)
     st.subheader("Distribución Geográfica de Establecimientos")
     
     @st.cache_data
@@ -523,6 +445,85 @@ with tab1:
             st.warning("No hay datos con coordenadas geográficas válidas para mostrar en el mapa.")
     else:
         st.warning("No se encontraron las columnas de coordenadas 'Latitud' y 'Longitud' en los datos.")
+
+    # Ahora mostramos la sección de distribución por región (movida después del mapa)
+    st.subheader("Distribución por Región")
+    
+    if "RegionGlosa" in df_filtered.columns and "TipoSistemaSaludGlosa" in df_filtered.columns:
+        # Crear una copia del DataFrame y agrupar los sistemas de salud
+        df_plot = df_filtered.copy()
+        df_plot['TipoSistemaSaludGlosa'] = df_plot['TipoSistemaSaludGlosa'].apply(
+            lambda x: x if x in ['Público', 'Privado'] else 'Otros'
+        )
+        
+        # Crear un DataFrame con el conteo por región y sistema de salud
+        region_sistema = pd.crosstab(
+            df_plot['RegionGlosa'], 
+            df_plot['TipoSistemaSaludGlosa'],
+            margins=False
+        ).reset_index()
+        
+        # Asegurar que todas las columnas existan
+        for col in ['Público', 'Privado', 'Otros']:
+            if col not in region_sistema.columns:
+                region_sistema[col] = 0
+        
+        # Reordenar las columnas para que Público y Privado aparezcan primero
+        cols = ['RegionGlosa', 'Público', 'Privado', 'Otros']
+        region_sistema = region_sistema[cols]
+        
+        # Calcular el total por región para ordenar
+        region_counts = df_filtered['RegionGlosa'].value_counts().reset_index()
+        region_counts.columns = ['Región', 'Cantidad']
+        region_counts['Porcentaje'] = (region_counts['Cantidad'] / len(df_filtered) * 100).round(1)
+        
+        # Ordenar regiones por cantidad total y establecer el orden
+        regiones_ordenadas = region_counts['Región'].tolist()
+        region_sistema['RegionGlosa'] = pd.Categorical(
+            region_sistema['RegionGlosa'],
+            categories=regiones_ordenadas,
+            ordered=True
+        )
+        region_sistema = region_sistema.sort_values('RegionGlosa', ascending=False)
+        
+        # Mostrar gráfico y tabla lado a lado
+        col1, col2 = st.columns([3, 2])
+        
+        with col1:
+            fig, ax = plt.subplots(figsize=(12, 10))
+            # Configurar el gráfico para mostrar correctamente los acentos
+            plt.rcParams['font.family'] = 'DejaVu Sans'
+            
+            # Definir colores para cada tipo de sistema
+            colors = ['#2ecc71', '#e74c3c', '#95a5a6']  # Verde para Público, Rojo para Privado, Gris para Otros
+            
+            # Crear el gráfico de barras apiladas
+            bottom = np.zeros(len(region_sistema))
+            
+            for idx, col in enumerate(['Público', 'Privado', 'Otros']):
+                ax.barh(region_sistema['RegionGlosa'], 
+                       region_sistema[col], 
+                       left=bottom, 
+                       color=colors[idx], 
+                       label=col)
+                bottom += region_sistema[col]
+            
+            ax.set_title('Establecimientos por Región y Sistema de Salud', fontsize=14)
+            ax.set_xlabel('Cantidad', fontsize=12)
+            ax.set_ylabel('Región', fontsize=12)
+            
+            # Añadir leyenda en una posición adecuada
+            plt.legend(title='Sistema de Salud', bbox_to_anchor=(1.05, 1), loc='upper left')
+            
+            # Asegurar que las etiquetas del eje y se muestren completas
+            plt.tight_layout()
+            st.pyplot(fig)
+        
+        with col2:
+            st.dataframe(region_counts, hide_index=True, height=600,
+                        column_config={"Porcentaje": st.column_config.NumberColumn(format="%.1f%%")})
+    else:
+        st.warning("No se encontraron las columnas necesarias en los datos")
 
 # Tab 2: Tipos de Establecimientos
 with tab2:
