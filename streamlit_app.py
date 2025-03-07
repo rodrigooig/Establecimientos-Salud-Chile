@@ -20,6 +20,55 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Agregar splash screen de carga al inicio
+splash_placeholder = st.empty()
+splash_placeholder.markdown("""
+<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #ffffff; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; transition: opacity 0.5s ease-out;" id="splash-screen">
+    <div style="text-align: center; max-width: 500px;">
+        <h1 style="font-size: 2rem; color: #3498db; margin-bottom: 1rem;">Establecimientos de Salud en Chile</h1>
+        <div class="splash-loader"></div>
+        <p style="margin-top: 1.5rem; color: #7f8c8d;">Cargando visualizaciones y datos...</p>
+    </div>
+</div>
+
+<style>
+    .splash-loader {
+        display: inline-block;
+        width: 80px;
+        height: 80px;
+        margin: 0 auto;
+    }
+    .splash-loader:after {
+        content: " ";
+        display: block;
+        width: 64px;
+        height: 64px;
+        margin: 8px;
+        border-radius: 50%;
+        border: 6px solid #3498db;
+        border-color: #3498db transparent #3498db transparent;
+        animation: splash-loader 1.2s linear infinite;
+    }
+    @keyframes splash-loader {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    /* Script para eliminar el splash screen después de que todo haya cargado */
+    document.addEventListener("DOMContentLoaded", function() {
+        setTimeout(function(){
+            const splash = document.getElementById('splash-screen');
+            if (splash) {
+                splash.style.opacity = 0;
+                setTimeout(function(){
+                    splash.style.display = 'none';
+                }, 500);
+            }
+        }, 3000);
+    });
+</style>
+""", unsafe_allow_html=True)
+
 # Configuración para caracteres especiales en Streamlit
 st.markdown("""
 <style>
@@ -53,16 +102,26 @@ def load_data():
     except Exception as e:
         return None, str(e)
 
-# Barra lateral con controles
-st.sidebar.title("Configuración")
+# Barra lateral con controles personalizados
+st.sidebar.markdown("""
+<div style="text-align: center; padding-bottom: 1rem;">
+    <h2 style="color: var(--primary-color); margin-bottom: 0.5rem; border-bottom: none;">Configuración</h2>
+    <p style="color: var(--text-color-light); font-size: 0.9rem;">Personalice su visualización</p>
+</div>
+""", unsafe_allow_html=True)
 
-# Cargar todos los datos
-df, error = load_data()
+# Indicador de carga para la carga inicial de datos
+with st.spinner('Cargando datos de establecimientos de salud...'):
+    # Cargar todos los datos
+    df, error = load_data()
 
 # Verificar si hubo error al cargar los datos
 if error:
     st.error(f"Error al cargar los datos: {error}")
     st.stop()
+
+# Quitar el splash screen después de cargar los datos
+splash_placeholder.empty()
 
 # Añadir información sobre los datos en la barra lateral
 st.sidebar.markdown("### Información del Dataset")
@@ -153,6 +212,32 @@ else:
 # Título principal
 st.title("Análisis de Establecimientos de Salud en Chile")
 st.markdown("Explore datos sobre establecimientos de salud en Chile.")
+
+# CSS para la animación de carga de toda la página
+st.markdown("""
+<style>
+    /* Animación de entrada para las tarjetas cuando la página carga */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translate3d(0, 20px, 0);
+        }
+        to {
+            opacity: 1;
+            transform: translate3d(0, 0, 0);
+        }
+    }
+    
+    .card-container {
+        animation: fadeInUp 0.5s ease-out;
+    }
+    
+    /* Aplicar animaciones con retraso para crear efecto escalonado */
+    .card-container:nth-child(1) { animation-delay: 0.1s; }
+    .card-container:nth-child(2) { animation-delay: 0.2s; }
+    .card-container:nth-child(3) { animation-delay: 0.3s; }
+</style>
+""", unsafe_allow_html=True)
 
 # Mostrar información básica
 st.header("Información General")
@@ -252,7 +337,7 @@ with tab1:
             st.pyplot(fig)
         
         with col2:
-            st.dataframe(region_counts, hide_index=True, 
+            st.dataframe(region_counts, hide_index=True, height=600,
                         column_config={"Porcentaje": st.column_config.NumberColumn(format="%.1f%%")})
     else:
         st.warning("No se encontraron las columnas necesarias en los datos")
@@ -383,7 +468,57 @@ with tab1:
         
         # Verificar si hay datos con coordenadas
         if len(map_data) > 0:
-            visualizar_mapa(map_data)
+            st.markdown('<div class="card-container">', unsafe_allow_html=True)
+            st.markdown("""
+            <div style="background-color: var(--primary-color-light); padding: 1rem; border-radius: var(--border-radius); margin-bottom: 1rem; border-left: 4px solid var(--primary-color);">
+                <p style="margin: 0; font-size: 0.95rem;">
+                    <strong>Guía de colores:</strong> 
+                    <span style="color: green; font-weight: 500;">■</span> Establecimientos públicos, 
+                    <span style="color: red; font-weight: 500;">■</span> Establecimientos privados, 
+                    <span style="color: gray; font-weight: 500;">■</span> Otros.
+                    <br>El tamaño de los círculos es fijo pero al hacer clic puede ver el detalle de cada ubicación.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Añadir indicador de carga mientras se procesa el mapa
+            with st.spinner('Construyendo mapa interactivo... Por favor espere unos segundos.'):
+                # Mostrar un mensaje de progreso personalizado
+                progress_placeholder = st.empty()
+                progress_placeholder.markdown("""
+                <div style="display: flex; align-items: center; justify-content: center; margin: 2rem 0;">
+                    <div style="text-align: center;">
+                        <div class="loader"></div>
+                        <p style="margin-top: 15px; color: var(--primary-color); font-weight: 500;">
+                            Cargando datos geográficos y procesando información de {0} establecimientos...
+                        </p>
+                    </div>
+                </div>
+                <style>
+                    .loader {{
+                        border: 5px solid #f3f3f3;
+                        border-radius: 50%;
+                        border-top: 5px solid var(--primary-color);
+                        width: 50px;
+                        height: 50px;
+                        margin: 0 auto;
+                        animation: spin 1s linear infinite;
+                    }}
+                    
+                    @keyframes spin {{
+                        0% {{ transform: rotate(0deg); }}
+                        100% {{ transform: rotate(360deg); }}
+                    }}
+                </style>
+                """.format(len(map_data)), unsafe_allow_html=True)
+                
+                # Visualizar el mapa
+                visualizar_mapa(map_data)
+                
+                # Eliminar el mensaje de progreso una vez cargado
+                progress_placeholder.empty()
+                
+            st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.warning("No hay datos con coordenadas geográficas válidas para mostrar en el mapa.")
     else:
@@ -394,51 +529,113 @@ with tab2:
     st.subheader("Tipos de Establecimientos")
     
     if "TipoEstablecimientoGlosa" in df_filtered.columns:
-        # Contar tipos de establecimientos
-        tipo_counts = df_filtered['TipoEstablecimientoGlosa'].value_counts().reset_index()
-        tipo_counts.columns = ['Tipo', 'Cantidad']
-        tipo_counts['Porcentaje'] = (tipo_counts['Cantidad'] / len(df_filtered) * 100).round(1)
+        # Spinner para la carga de datos de tipos de establecimientos
+        with st.spinner('Procesando información de tipos de establecimientos...'):
+            # Contar tipos de establecimientos
+            tipo_counts = df_filtered['TipoEstablecimientoGlosa'].value_counts().reset_index()
+            tipo_counts.columns = ['Tipo', 'Cantidad']
+            tipo_counts['Porcentaje'] = (tipo_counts['Cantidad'] / len(df_filtered) * 100).round(1)
         
-        # Mostrar gráfico y tabla
-        fig, ax = plt.subplots(figsize=(10, 8))
-        # Configurar el gráfico para mostrar correctamente los acentos
-        plt.rcParams['font.family'] = 'DejaVu Sans'
-        sns.barplot(x='Cantidad', y='Tipo', data=tipo_counts.head(10), ax=ax)
-        ax.set_title('Principales Tipos de Establecimientos', fontsize=14)
-        ax.set_xlabel('Cantidad', fontsize=12)
-        ax.set_ylabel('Tipo', fontsize=12)
-        # Asegurar que las etiquetas del eje y se muestren completas
-        plt.tight_layout()
-        st.pyplot(fig)
+        # Envolver en contenedor de tarjeta
+        st.markdown('<div class="card-container">', unsafe_allow_html=True)
         
-        st.dataframe(tipo_counts, hide_index=True,
-                    column_config={"Porcentaje": st.column_config.NumberColumn(format="%.1f%%")})
+        # Añadir descripción introductoria
+        st.markdown("""
+        <div style="background-color: var(--primary-color-light); padding: 1rem; border-radius: var(--border-radius); margin-bottom: 1.5rem; border-left: 4px solid var(--primary-color);">
+            <p style="margin: 0; font-size: 0.95rem;">
+                Los establecimientos de salud se clasifican en diferentes tipos según sus características, 
+                servicios ofrecidos y nivel de complejidad. A continuación se muestra la distribución
+                de los diferentes tipos de establecimientos filtrados.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         
-
+        # Mostrar gráfico y tabla en dos columnas (relación 3:2)
+        col1, col2 = st.columns([3, 2])
+        
+        with col1:
+            # Spinner para la generación del gráfico
+            with st.spinner('Generando visualización...'):
+                fig, ax = plt.subplots(figsize=(10, 8))
+                # Configurar el gráfico para mostrar correctamente los acentos
+                plt.rcParams['font.family'] = 'DejaVu Sans'
+                
+                # Usar una paleta de colores más atractiva
+                colors = sns.color_palette('Blues_r', n_colors=len(tipo_counts.head(10)))
+                bars = sns.barplot(x='Cantidad', y='Tipo', data=tipo_counts.head(10), ax=ax, palette=colors)
+                
+                # Añadir etiquetas de valores
+                for i, p in enumerate(bars.patches):
+                    width = p.get_width()
+                    ax.text(width + 5, p.get_y() + p.get_height()/2, f'{width:.0f}', 
+                            ha='left', va='center', fontweight='bold')
+                
+                ax.set_title('Principales Tipos de Establecimientos', fontsize=14)
+                ax.set_xlabel('Cantidad', fontsize=12)
+                ax.set_ylabel('Tipo', fontsize=12)
+                # Asegurar que las etiquetas del eje y se muestren completas
+                plt.tight_layout()
+                st.pyplot(fig)
+        
+        with col2:
+            st.dataframe(tipo_counts, hide_index=True, height=600,
+                        column_config={"Porcentaje": st.column_config.NumberColumn(format="%.1f%%")})
     else:
         st.warning("No se encontró la columna 'TipoEstablecimientoGlosa' en los datos")
 
 # Tab 3: Niveles de Atención
 with tab3:
+    st.markdown('<div class="card-container">', unsafe_allow_html=True)
     st.subheader("Niveles de Atención y Complejidad")
+    
+    # Agregar contexto introductorio
+    st.markdown("""
+    <div style="background-color: var(--primary-color-light); padding: 1rem; border-radius: var(--border-radius); margin-bottom: 1.5rem; border-left: 4px solid var(--primary-color);">
+        <p style="margin: 0; font-size: 0.95rem;">
+            El nivel de atención y complejidad de un establecimiento de salud define su capacidad resolutiva
+            y el tipo de servicios que puede ofrecer. Los establecimientos primarios atienden necesidades básicas,
+            mientras que los de mayor complejidad ofrecen servicios especializados.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
     with col1:
         if "NivelAtencionEstabglosa" in df_filtered.columns:
-            nivel_counts = df_filtered['NivelAtencionEstabglosa'].value_counts().reset_index()
-            nivel_counts.columns = ['Nivel', 'Cantidad']
-            
-            fig, ax = plt.subplots(figsize=(8, 8))
-            # Configurar el gráfico para mostrar correctamente los acentos
-            plt.rcParams['font.family'] = 'DejaVu Sans'
-            colors = sns.color_palette('pastel')[0:5]
-            plt.pie(nivel_counts['Cantidad'], labels=nivel_counts['Nivel'], 
-                   autopct='%1.1f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
-            plt.axis('equal')
-            plt.title('Distribución por Nivel de Atención', fontsize=14)
-            plt.tight_layout()
-            st.pyplot(fig)
+            # Spinner para el procesamiento de datos y generación del gráfico
+            with st.spinner('Analizando niveles de atención...'):
+                nivel_counts = df_filtered['NivelAtencionEstabglosa'].value_counts().reset_index()
+                nivel_counts.columns = ['Nivel', 'Cantidad']
+                
+                fig, ax = plt.subplots(figsize=(8, 8))
+                # Configurar el gráfico para mostrar correctamente los acentos
+                plt.rcParams['font.family'] = 'DejaVu Sans'
+                
+                # Usar colores más atractivos y consistentes con el tema
+                colors = sns.color_palette('Blues', n_colors=len(nivel_counts))
+                
+                # Crear gráfico de torta con mejor formato
+                wedges, texts, autotexts = plt.pie(
+                    nivel_counts['Cantidad'], 
+                    labels=nivel_counts['Nivel'], 
+                    autopct='%1.1f%%', 
+                    startangle=90, 
+                    colors=colors, 
+                    textprops={'fontsize': 12},
+                    wedgeprops={'edgecolor': 'white', 'linewidth': 2},
+                    shadow=True
+                )
+                
+                # Mejorar la visibilidad del texto
+                for autotext in autotexts:
+                    autotext.set_color('white')
+                    autotext.set_fontweight('bold')
+                    
+                plt.axis('equal')
+                plt.title('Distribución por Nivel de Atención', fontsize=14, pad=20)
+                plt.tight_layout()
+                st.pyplot(fig)
         else:
             st.warning("No se encontró la columna 'NivelAtencionEstabglosa' en los datos")
     
@@ -462,44 +659,46 @@ with tab3:
 
 # Tab 4: Datos Brutos
 with tab4:
-    st.subheader(f"Muestra de Datos (primeras 10 filas de un total de {len(df_filtered)} registros)")
+    st.markdown('<div class="card-container">', unsafe_allow_html=True)
+    st.subheader(f"Muestra de Datos")
     
-    # Seleccionar columnas importantes a mostrar (si existen)
-    cols_to_show = [col for col in [
-        'EstablecimientoGlosa', 'RegionGlosa', 'ComunaGlosa', 
-        'TipoEstablecimientoGlosa', 'TipoSistemaSaludGlosa', 'NivelAtencionEstabglosa',
-        'TieneServicioUrgencia'
-    ] if col in df_filtered.columns]
-    
-    # Aplicar estilo personalizado para la tabla
-    st.markdown("""
-    <style>
-    .dataframe {
-        font-family: 'Roboto', sans-serif !important;
-    }
-    .dataframe th {
-        font-weight: bold !important;
-    }
-    </style>
+    # Agregar descripción
+    st.markdown(f"""
+    <div style="background-color: var(--primary-color-light); padding: 1rem; border-radius: var(--border-radius); margin-bottom: 1.5rem; border-left: 4px solid var(--primary-color);">
+        <p style="margin: 0; font-size: 0.95rem;">
+            A continuación se muestra una muestra de los datos filtrados. 
+            Se presentan las primeras 10 filas de un total de <strong>{len(df_filtered)}</strong> registros.
+            Puede descargar el conjunto completo de datos utilizando el botón al final de esta sección.
+        </p>
+    </div>
     """, unsafe_allow_html=True)
     
-    if cols_to_show:
-        # Crear una copia del dataframe para evitar advertencias
-        display_df = df_filtered[cols_to_show].head(10).copy()
+    # Spinner para la carga de la tabla de datos
+    with st.spinner('Preparando visualización de datos...'):
+        # Seleccionar columnas importantes a mostrar (si existen)
+        cols_to_show = [col for col in [
+            'EstablecimientoGlosa', 'RegionGlosa', 'ComunaGlosa', 
+            'TipoEstablecimientoGlosa', 'TipoSistemaSaludGlosa', 'NivelAtencionEstabglosa',
+            'TieneServicioUrgencia'
+        ] if col in df_filtered.columns]
         
-        # Configurar las columnas para mostrar correctamente
-        column_config = {
-            col: st.column_config.TextColumn(col) for col in cols_to_show
-        }
-        
-        st.dataframe(
-            display_df, 
-            hide_index=False,
-            column_config=column_config,
-            use_container_width=True
-        )
-    else:
-        st.dataframe(df_filtered.head(10), hide_index=False, use_container_width=True)
+        if cols_to_show:
+            # Crear una copia del dataframe para evitar advertencias
+            display_df = df_filtered[cols_to_show].head(10).copy()
+            
+            # Configurar las columnas para mostrar correctamente
+            column_config = {
+                col: st.column_config.TextColumn(col) for col in cols_to_show
+            }
+            
+            st.dataframe(
+                display_df, 
+                hide_index=False,
+                column_config=column_config,
+                use_container_width=True
+            )
+        else:
+            st.dataframe(df_filtered.head(10), hide_index=False, use_container_width=True)
     
     # Opción para descargar datos
     st.download_button(
