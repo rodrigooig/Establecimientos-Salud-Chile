@@ -380,7 +380,6 @@ with tab1:
             ).add_to(marker_cluster)
         
         # Mostrar el mapa en Streamlit
-        st.markdown("Los colores de los círculos indican el tipo de sistema de salud: verde (público), rojo (privado), gris (otros).")
         folium_static(m, width=1000, height=600)
 
     # Verificar si hay columnas de coordenadas
@@ -398,7 +397,6 @@ with tab1:
                     <span style="color: green; font-weight: 500;">■</span> Establecimientos públicos, 
                     <span style="color: red; font-weight: 500;">■</span> Establecimientos privados, 
                     <span style="color: gray; font-weight: 500;">■</span> Otros.
-                    <br>El tamaño de los círculos es fijo pero al hacer clic puede ver el detalle de cada ubicación.
                 </p>
             </div>
             """, unsafe_allow_html=True)
