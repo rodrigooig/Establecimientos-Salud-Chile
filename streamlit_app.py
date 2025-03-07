@@ -103,12 +103,10 @@ def load_data():
         return None, str(e)
 
 # Barra lateral con controles personalizados
-st.sidebar.markdown("""
-<div style="text-align: center; padding-bottom: 1rem;">
-    <h2 style="color: var(--primary-color); margin-bottom: 0.5rem; border-bottom: none;">Configuración</h2>
-    <p style="color: var(--text-color-light); font-size: 0.9rem;">Personalice su visualización</p>
-</div>
-""", unsafe_allow_html=True)
+st.sidebar.markdown("## 👋 ¡Bienvenido!")
+st.sidebar.markdown("En esta app podrás explorar datos de los establecimientos de salud en Chile.")
+st.sidebar.markdown("Puedes revisar el código fuente en [GitHub](https://github.com/rodrigooig/establecimientos-salud-chile)")
+
 
 # Indicador de carga para la carga inicial de datos
 with st.spinner('Cargando datos de establecimientos de salud...'):
@@ -211,33 +209,6 @@ else:
 
 # Título principal
 st.title("Análisis de Establecimientos de Salud en Chile")
-st.markdown("Explore datos sobre establecimientos de salud en Chile.")
-
-# CSS para la animación de carga de toda la página
-st.markdown("""
-<style>
-    /* Animación de entrada para las tarjetas cuando la página carga */
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translate3d(0, 20px, 0);
-        }
-        to {
-            opacity: 1;
-            transform: translate3d(0, 0, 0);
-        }
-    }
-    
-    .card-container {
-        animation: fadeInUp 0.5s ease-out;
-    }
-    
-    /* Aplicar animaciones con retraso para crear efecto escalonado */
-    .card-container:nth-child(1) { animation-delay: 0.1s; }
-    .card-container:nth-child(2) { animation-delay: 0.2s; }
-    .card-container:nth-child(3) { animation-delay: 0.3s; }
-</style>
-""", unsafe_allow_html=True)
 
 # Mostrar información básica
 st.header("Información General")
@@ -540,14 +511,10 @@ with tab2:
         
         # Añadir descripción introductoria
         st.markdown("""
-        <div style="background-color: var(--primary-color-light); padding: 1rem; border-radius: var(--border-radius); margin-bottom: 1.5rem; border-left: 4px solid var(--primary-color);">
-            <p style="margin: 0; font-size: 0.95rem;">
-                Los establecimientos de salud se clasifican en diferentes tipos según sus características, 
-                servicios ofrecidos y nivel de complejidad. A continuación se muestra la distribución
-                de los diferentes tipos de establecimientos filtrados.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        Los establecimientos de salud se clasifican en diferentes tipos según sus características, 
+        servicios ofrecidos y nivel de complejidad. A continuación se muestra la distribución
+        de los diferentes tipos de establecimientos filtrados.
+        """)
         
         # Mostrar gráfico y tabla en dos columnas (relación 3:2)
         col1, col2 = st.columns([3, 2])
@@ -589,14 +556,10 @@ with tab3:
     
     # Agregar contexto introductorio
     st.markdown("""
-    <div style="background-color: var(--primary-color-light); padding: 1rem; border-radius: var(--border-radius); margin-bottom: 1.5rem; border-left: 4px solid var(--primary-color);">
-        <p style="margin: 0; font-size: 0.95rem;">
-            El nivel de atención y complejidad de un establecimiento de salud define su capacidad resolutiva
-            y el tipo de servicios que puede ofrecer. Los establecimientos primarios atienden necesidades básicas,
-            mientras que los de mayor complejidad ofrecen servicios especializados.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    El nivel de atención y complejidad de un establecimiento de salud define su capacidad resolutiva
+    y el tipo de servicios que puede ofrecer. Los establecimientos primarios atienden necesidades básicas,
+    mientras que los de mayor complejidad ofrecen servicios especializados.
+    """)
     
     col1, col2 = st.columns(2)
     
@@ -662,15 +625,11 @@ with tab4:
     st.subheader(f"Muestra de Datos")
     
     # Agregar descripción
-    st.markdown(f"""
-    <div style="background-color: var(--primary-color-light); padding: 1rem; border-radius: var(--border-radius); margin-bottom: 1.5rem; border-left: 4px solid var(--primary-color);">
-        <p style="margin: 0; font-size: 0.95rem;">
-            A continuación se muestra una muestra de los datos filtrados. 
-            Se presentan las primeras 10 filas de un total de <strong>{len(df_filtered)}</strong> registros.
-            Puede descargar el conjunto completo de datos utilizando el botón al final de esta sección.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.info(f"""
+    A continuación se muestra una muestra de los datos filtrados. 
+    Se presentan las primeras 10 filas de un total de {len(df_filtered)} registros.
+    Puede descargar el conjunto completo de datos utilizando el botón al final de esta sección.
+    """)
     
     # Spinner para la carga de la tabla de datos
     with st.spinner('Preparando visualización de datos...'):
@@ -714,7 +673,7 @@ st.markdown("""
 
 Desarrollado por: Rodrigo Muñoz Soto  
 📧 munozsoto.rodrigo@gmail.com | 🔗 [GitHub: rodrigooig](https://github.com/rodrigooig) | 💼 [LinkedIn](https://www.linkedin.com/in/munozsoto-rodrigo/)  
-Versión: 0.0.3
+Versión: 0.0.4
 """)
 st.markdown("""
 <style>
