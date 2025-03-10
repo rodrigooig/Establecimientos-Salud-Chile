@@ -209,25 +209,49 @@ else:
 
 # Título principal
 st.title("Análisis de Establecimientos de Salud en Chile")
+st.markdown("Explore datos sobre establecimientos de salud en Chile.")
+
+# CSS para la animación de carga de toda la página
+st.markdown("""
+<style>
+    /* Animación de entrada para las tarjetas cuando la página carga */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translate3d(0, 20px, 0);
+        }
+        to {
+            opacity: 1;
+            transform: translate3d(0, 0, 0);
+        }
+    }
+    
+    .card-container {
+        animation: fadeInUp 0.5s ease-out;
+    }
+    
+    /* Aplicar animaciones con retraso para crear efecto escalonado */
+    .card-container:nth-child(1) { animation-delay: 0.1s; }
+    .card-container:nth-child(2) { animation-delay: 0.2s; }
+    .card-container:nth-child(3) { animation-delay: 0.3s; }
+</style>
+""", unsafe_allow_html=True)
 
 # Mostrar información básica
 st.header("Información General")
-col1, col2, col3 = st.columns(3)
 
-with col1:
-    st.metric("Total Establecimientos", f"{len(df_filtered)}")
+# Mostrar métricas una debajo de la otra (sin columnas)
+st.metric("Total Establecimientos", f"{len(df_filtered)}")
 
-with col2:
-    urgencia_count = df_filtered["TieneServicioUrgencia"].value_counts().get("SI", 0)
-    st.metric("Con Servicio de Urgencia", f"{urgencia_count} ({urgencia_count/len(df_filtered)*100:.1f}%)")
+urgencia_count = df_filtered["TieneServicioUrgencia"].value_counts().get("SI", 0)
+st.metric("Con Servicio de Urgencia", f"{urgencia_count} ({urgencia_count/len(df_filtered)*100:.1f}%)")
 
-with col3:
-    # Comprobar si existe la columna TipoSistemaSaludGlosa para el cálculo
-    if "TipoSistemaSaludGlosa" in df_filtered.columns:
-        public_count = df_filtered[df_filtered["TipoSistemaSaludGlosa"] == "Público"].shape[0]
-        st.metric("Sistema Público", f"{public_count} ({public_count/len(df_filtered)*100:.1f}%)")
-    else:
-        st.metric("Columnas Disponibles", f"{len(df_filtered.columns)}")
+# Comprobar si existe la columna TipoSistemaSaludGlosa para el cálculo
+if "TipoSistemaSaludGlosa" in df_filtered.columns:
+    public_count = df_filtered[df_filtered["TipoSistemaSaludGlosa"] == "Público"].shape[0]
+    st.metric("Sistema Público", f"{public_count} ({public_count/len(df_filtered)*100:.1f}%)")
+else:
+    st.metric("Columnas Disponibles", f"{len(df_filtered.columns)}")
 
 # Pestañas para organizar el contenido
 tab1, tab2, tab3, tab4 = st.tabs(["Distribución Geográfica", "Tipos de Establecimientos", 
@@ -455,42 +479,40 @@ with tab1:
         )
         region_sistema = region_sistema.sort_values('RegionGlosa', ascending=False)
         
-        # Mostrar gráfico y tabla lado a lado
-        col1, col2 = st.columns([3, 2])
+        # Mostrar gráfico y tabla uno debajo del otro (sin columnas)
+        st.markdown("#### Gráfico de Distribución por Región y Sistema de Salud")
+        fig, ax = plt.subplots(figsize=(12, 10))
+        # Configurar el gráfico para mostrar correctamente los acentos
+        plt.rcParams['font.family'] = 'DejaVu Sans'
         
-        with col1:
-            fig, ax = plt.subplots(figsize=(12, 10))
-            # Configurar el gráfico para mostrar correctamente los acentos
-            plt.rcParams['font.family'] = 'DejaVu Sans'
-            
-            # Definir colores para cada tipo de sistema
-            colors = ['#2ecc71', '#e74c3c', '#95a5a6']  # Verde para Público, Rojo para Privado, Gris para Otros
-            
-            # Crear el gráfico de barras apiladas
-            bottom = np.zeros(len(region_sistema))
-            
-            for idx, col in enumerate(['Público', 'Privado', 'Otros']):
-                ax.barh(region_sistema['RegionGlosa'], 
-                       region_sistema[col], 
-                       left=bottom, 
-                       color=colors[idx], 
-                       label=col)
-                bottom += region_sistema[col]
-            
-            ax.set_title('Establecimientos por Región y Sistema de Salud', fontsize=14)
-            ax.set_xlabel('Cantidad', fontsize=12)
-            ax.set_ylabel('Región', fontsize=12)
-            
-            # Añadir leyenda en una posición adecuada
-            plt.legend(title='Sistema de Salud', bbox_to_anchor=(1.05, 1), loc='upper left')
-            
-            # Asegurar que las etiquetas del eje y se muestren completas
-            plt.tight_layout()
-            st.pyplot(fig)
+        # Definir colores para cada tipo de sistema
+        colors = ['#2ecc71', '#e74c3c', '#95a5a6']  # Verde para Público, Rojo para Privado, Gris para Otros
         
-        with col2:
-            st.dataframe(region_counts, hide_index=True, height=600,
-                        column_config={"Porcentaje": st.column_config.NumberColumn(format="%.1f%%")})
+        # Crear el gráfico de barras apiladas
+        bottom = np.zeros(len(region_sistema))
+        
+        for idx, col in enumerate(['Público', 'Privado', 'Otros']):
+            ax.barh(region_sistema['RegionGlosa'], 
+                   region_sistema[col], 
+                   left=bottom, 
+                   color=colors[idx], 
+                   label=col)
+            bottom += region_sistema[col]
+        
+        ax.set_title('Establecimientos por Región y Sistema de Salud', fontsize=14)
+        ax.set_xlabel('Cantidad', fontsize=12)
+        ax.set_ylabel('Región', fontsize=12)
+        
+        # Añadir leyenda en una posición adecuada
+        plt.legend(title='Sistema de Salud', bbox_to_anchor=(1.05, 1), loc='upper left')
+        
+        # Asegurar que las etiquetas del eje y se muestren completas
+        plt.tight_layout()
+        st.pyplot(fig)
+        
+        st.markdown("#### Tabla de Distribución por Región")
+        st.dataframe(region_counts, hide_index=True,
+                    column_config={"Porcentaje": st.column_config.NumberColumn(format="%.1f%%")})
     else:
         st.warning("No se encontraron las columnas necesarias en los datos")
 
@@ -511,41 +533,44 @@ with tab2:
         
         # Añadir descripción introductoria
         st.markdown("""
-        Los establecimientos de salud se clasifican en diferentes tipos según sus características, 
-        servicios ofrecidos y nivel de complejidad. A continuación se muestra la distribución
-        de los diferentes tipos de establecimientos filtrados.
-        """)
+        <div style="background-color: var(--primary-color-light); padding: 1rem; border-radius: var(--border-radius); margin-bottom: 1.5rem; border-left: 4px solid var(--primary-color);">
+            <p style="margin: 0; font-size: 0.95rem;">
+                Los establecimientos de salud se clasifican en diferentes tipos según sus características, 
+                servicios ofrecidos y nivel de complejidad. A continuación se muestra la distribución
+                de los diferentes tipos de establecimientos filtrados.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        # Mostrar gráfico y tabla en dos columnas (relación 3:2)
-        col1, col2 = st.columns([3, 2])
+        # Mostrar gráfico y tabla uno debajo del otro (sin columnas)
+        st.markdown("#### Gráfico de Tipos de Establecimientos")
         
-        with col1:
-            # Spinner para la generación del gráfico
-            with st.spinner('Generando visualización...'):
-                fig, ax = plt.subplots(figsize=(10, 8))
-                # Configurar el gráfico para mostrar correctamente los acentos
-                plt.rcParams['font.family'] = 'DejaVu Sans'
-                
-                # Usar una paleta de colores más atractiva
-                colors = sns.color_palette('Blues_r', n_colors=len(tipo_counts.head(10)))
-                bars = sns.barplot(x='Cantidad', y='Tipo', data=tipo_counts.head(10), ax=ax, palette=colors)
-                
-                # Añadir etiquetas de valores
-                for i, p in enumerate(bars.patches):
-                    width = p.get_width()
-                    ax.text(width + 5, p.get_y() + p.get_height()/2, f'{width:.0f}', 
-                            ha='left', va='center', fontweight='bold')
-                
-                ax.set_title('Principales Tipos de Establecimientos', fontsize=14)
-                ax.set_xlabel('Cantidad', fontsize=12)
-                ax.set_ylabel('Tipo', fontsize=12)
-                # Asegurar que las etiquetas del eje y se muestren completas
-                plt.tight_layout()
-                st.pyplot(fig)
+        # Spinner para la generación del gráfico
+        with st.spinner('Generando visualización...'):
+            fig, ax = plt.subplots(figsize=(10, 8))
+            # Configurar el gráfico para mostrar correctamente los acentos
+            plt.rcParams['font.family'] = 'DejaVu Sans'
+            
+            # Usar una paleta de colores más atractiva
+            colors = sns.color_palette('Blues_r', n_colors=len(tipo_counts.head(10)))
+            bars = sns.barplot(x='Cantidad', y='Tipo', data=tipo_counts.head(10), ax=ax, palette=colors)
+            
+            # Añadir etiquetas de valores
+            for i, p in enumerate(bars.patches):
+                width = p.get_width()
+                ax.text(width + 5, p.get_y() + p.get_height()/2, f'{width:.0f}', 
+                        ha='left', va='center', fontweight='bold')
+            
+            ax.set_title('Principales Tipos de Establecimientos', fontsize=14)
+            ax.set_xlabel('Cantidad', fontsize=12)
+            ax.set_ylabel('Tipo', fontsize=12)
+            # Asegurar que las etiquetas del eje y se muestren completas
+            plt.tight_layout()
+            st.pyplot(fig)
         
-        with col2:
-            st.dataframe(tipo_counts, hide_index=True, height=600,
-                        column_config={"Porcentaje": st.column_config.NumberColumn(format="%.1f%%")})
+        st.markdown("#### Tabla de Tipos de Establecimientos")
+        st.dataframe(tipo_counts, hide_index=True,
+                    column_config={"Porcentaje": st.column_config.NumberColumn(format="%.1f%%")})
     else:
         st.warning("No se encontró la columna 'TipoEstablecimientoGlosa' en los datos")
 
@@ -556,68 +581,74 @@ with tab3:
     
     # Agregar contexto introductorio
     st.markdown("""
-    El nivel de atención y complejidad de un establecimiento de salud define su capacidad resolutiva
-    y el tipo de servicios que puede ofrecer. Los establecimientos primarios atienden necesidades básicas,
-    mientras que los de mayor complejidad ofrecen servicios especializados.
-    """)
+    <div style="background-color: var(--primary-color-light); padding: 1rem; border-radius: var(--border-radius); margin-bottom: 1.5rem; border-left: 4px solid var(--primary-color);">
+        <p style="margin: 0; font-size: 0.95rem;">
+            El nivel de atención y complejidad de un establecimiento de salud define su capacidad resolutiva
+            y el tipo de servicios que puede ofrecer. Los establecimientos primarios atienden necesidades básicas,
+            mientras que los de mayor complejidad ofrecen servicios especializados.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    col1, col2 = st.columns(2)
+    # Mostrar gráficos uno debajo del otro (sin columnas)
     
-    with col1:
-        if "NivelAtencionEstabglosa" in df_filtered.columns:
-            # Spinner para el procesamiento de datos y generación del gráfico
-            with st.spinner('Analizando niveles de atención...'):
-                nivel_counts = df_filtered['NivelAtencionEstabglosa'].value_counts().reset_index()
-                nivel_counts.columns = ['Nivel', 'Cantidad']
-                
-                fig, ax = plt.subplots(figsize=(8, 8))
-                # Configurar el gráfico para mostrar correctamente los acentos
-                plt.rcParams['font.family'] = 'DejaVu Sans'
-                
-                # Usar colores más atractivos y consistentes con el tema
-                colors = sns.color_palette('Blues', n_colors=len(nivel_counts))
-                
-                # Crear gráfico de torta con mejor formato
-                wedges, texts, autotexts = plt.pie(
-                    nivel_counts['Cantidad'], 
-                    labels=nivel_counts['Nivel'], 
-                    autopct='%1.1f%%', 
-                    startangle=90, 
-                    colors=colors, 
-                    textprops={'fontsize': 12},
-                    wedgeprops={'edgecolor': 'white', 'linewidth': 2},
-                    shadow=True
-                )
-                
-                # Mejorar la visibilidad del texto
-                for autotext in autotexts:
-                    autotext.set_color('white')
-                    autotext.set_fontweight('bold')
-                    
-                plt.axis('equal')
-                plt.title('Distribución por Nivel de Atención', fontsize=14, pad=20)
-                plt.tight_layout()
-                st.pyplot(fig)
-        else:
-            st.warning("No se encontró la columna 'NivelAtencionEstabglosa' en los datos")
-    
-    with col2:
-        if "NivelComplejidadEstabGlosa" in df_filtered.columns:
-            complej_counts = df_filtered['NivelComplejidadEstabGlosa'].value_counts().reset_index()
-            complej_counts.columns = ['Complejidad', 'Cantidad']
+    # Gráfico de Nivel de Atención
+    st.markdown("#### Distribución por Nivel de Atención")
+    if "NivelAtencionEstabglosa" in df_filtered.columns:
+        # Spinner para el procesamiento de datos y generación del gráfico
+        with st.spinner('Analizando niveles de atención...'):
+            nivel_counts = df_filtered['NivelAtencionEstabglosa'].value_counts().reset_index()
+            nivel_counts.columns = ['Nivel', 'Cantidad']
             
             fig, ax = plt.subplots(figsize=(8, 8))
             # Configurar el gráfico para mostrar correctamente los acentos
             plt.rcParams['font.family'] = 'DejaVu Sans'
-            colors = sns.color_palette('pastel')[0:5]
-            plt.pie(complej_counts['Cantidad'], labels=complej_counts['Complejidad'],
-                   autopct='%1.1f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
+            
+            # Usar colores más atractivos y consistentes con el tema
+            colors = sns.color_palette('Blues', n_colors=len(nivel_counts))
+            
+            # Crear gráfico de torta con mejor formato
+            wedges, texts, autotexts = plt.pie(
+                nivel_counts['Cantidad'], 
+                labels=nivel_counts['Nivel'], 
+                autopct='%1.1f%%', 
+                startangle=90, 
+                colors=colors, 
+                textprops={'fontsize': 12},
+                wedgeprops={'edgecolor': 'white', 'linewidth': 2},
+                shadow=True
+            )
+            
+            # Mejorar la visibilidad del texto
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                
             plt.axis('equal')
-            plt.title('Distribución por Nivel de Complejidad', fontsize=14)
+            plt.title('Distribución por Nivel de Atención', fontsize=14, pad=20)
             plt.tight_layout()
             st.pyplot(fig)
-        else:
-            st.warning("No se encontró la columna 'NivelComplejidadEstabGlosa' en los datos")
+    else:
+        st.warning("No se encontró la columna 'NivelAtencionEstabglosa' en los datos")
+    
+    # Gráfico de Nivel de Complejidad
+    st.markdown("#### Distribución por Nivel de Complejidad")
+    if "NivelComplejidadEstabGlosa" in df_filtered.columns:
+        complej_counts = df_filtered['NivelComplejidadEstabGlosa'].value_counts().reset_index()
+        complej_counts.columns = ['Complejidad', 'Cantidad']
+        
+        fig, ax = plt.subplots(figsize=(8, 8))
+        # Configurar el gráfico para mostrar correctamente los acentos
+        plt.rcParams['font.family'] = 'DejaVu Sans'
+        colors = sns.color_palette('pastel')[0:5]
+        plt.pie(complej_counts['Cantidad'], labels=complej_counts['Complejidad'],
+               autopct='%1.1f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
+        plt.axis('equal')
+        plt.title('Distribución por Nivel de Complejidad', fontsize=14)
+        plt.tight_layout()
+        st.pyplot(fig)
+    else:
+        st.warning("No se encontró la columna 'NivelComplejidadEstabGlosa' en los datos")
 
 # Tab 4: Datos Brutos
 with tab4:

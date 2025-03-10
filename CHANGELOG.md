@@ -8,6 +8,8 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 ### Modificado
 - Reordenamiento de elementos en la pestaña "Distribución Geográfica": ahora el mapa interactivo aparece antes que los gráficos y tablas de distribución por región
 - Mejora de experiencia de usuario priorizando la visualización geográfica
+- Diseño responsivo: eliminación de columnas para mejor visualización en pantallas de baja resolución
+- Elementos visuales (gráficos y tablas) ahora se muestran uno debajo del otro para mejorar la legibilidad
 
 ## [0.0.2] - 2025-03-05
 
