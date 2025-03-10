@@ -20,9 +20,22 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Configuración para caracteres especiales en Streamlit
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+    html, body, [class*="css"] {
+        font-family: 'Roboto', sans-serif;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Barra lateral con controles personalizados
 st.sidebar.title("Configuración")
 st.sidebar.caption("Personalice su visualización")
+st.sidebar.markdown("## 👋 ¡Bienvenido!")
+st.sidebar.markdown("En esta app podrás explorar datos de los establecimientos de salud en Chile.")
+st.sidebar.markdown("Puedes revisar el código fuente en [GitHub](https://github.com/rodrigooig/establecimientos-salud-chile)")
 
 # Función para cargar los datos
 @st.cache_data
@@ -145,7 +158,6 @@ else:
 
 # Título principal
 st.title("Análisis de Establecimientos de Salud en Chile")
-st.write("Explore datos sobre establecimientos de salud en Chile.")
 
 # Mostrar información básica
 st.header("Información General")
@@ -154,11 +166,11 @@ st.header("Información General")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("Total Establecimientos", f"{len(df_filtered)}")
+    st.metric("**Total Establecimientos**", f"{len(df_filtered)}")
 
 with col2:
     urgencia_count = df_filtered["TieneServicioUrgencia"].value_counts().get("SI", 0)
-    st.metric("Con Servicio de Urgencia", f"{urgencia_count} ({urgencia_count/len(df_filtered)*100:.1f}%)")
+    st.metric("**Con Servicio de Urgencia**", f"{urgencia_count} ({urgencia_count/len(df_filtered)*100:.1f}%)")
 
 with col3:
     # Comprobar si existe la columna TipoSistemaSaludGlosa para el cálculo
@@ -300,13 +312,12 @@ with tab1:
         # Verificar si hay datos con coordenadas
         if len(map_data) > 0:
             # Guía de colores usando elementos nativos de Streamlit
-            st.info("**Guía de colores:** 🟢 Establecimientos públicos, 🔴 Establecimientos privados, ⚪ Otros. El tamaño de los círculos es fijo pero al hacer clic puede ver el detalle de cada ubicación.")
+            st.info("**Guía de colores:** 🟢 Establecimientos públicos, 🔴 Establecimientos privados, ⚪ Otros.")
             
             # Añadir indicador de carga mientras se procesa el mapa
             with st.spinner('Construyendo mapa interactivo... Por favor espere unos segundos.'):
                 # Mostrar un mensaje de progreso personalizado
                 progress_placeholder = st.empty()
-                progress_placeholder.info(f"Cargando datos geográficos y procesando información de {len(map_data)} establecimientos...")
                 
                 # Visualizar el mapa
                 visualizar_mapa(map_data)
