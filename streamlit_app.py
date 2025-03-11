@@ -160,7 +160,6 @@ else:
 st.title("Análisis de Establecimientos de Salud en Chile")
 
 # Mostrar información básica
-st.header("Información General")
 
 # Restaurar las columnas para los 3 KPIs principales
 col1, col2, col3 = st.columns(3)
@@ -181,7 +180,6 @@ with col3:
         st.metric("Columnas Disponibles", f"{len(df_filtered.columns)}")
 
 # Agregar línea de separación después de la información general
-st.divider()
 
 # Pestañas para organizar el contenido
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Distribución Geográfica", "Tipos de Establecimientos", 
@@ -333,7 +331,6 @@ with tab1:
         st.warning("No se encontraron las columnas de coordenadas 'Latitud' y 'Longitud' en los datos.")
 
     # Ahora mostramos la sección de distribución por región (movida después del mapa)
-    st.subheader("Distribución por Región")
     
     if "RegionGlosa" in df_filtered.columns and "TipoSistemaSaludGlosa" in df_filtered.columns:
         # Crear una copia del DataFrame y agrupar los sistemas de salud
@@ -372,9 +369,7 @@ with tab1:
         )
         region_sistema = region_sistema.sort_values('RegionGlosa', ascending=False)
         
-        # Mostrar gráfico y tabla uno debajo del otro (sin columnas)
-        st.markdown("#### Gráfico de Distribución por Región y Sistema de Salud")
-        
+        # Mostrar gráfico y tabla uno debajo del otro (sin columnas)        
         # Definir colores para cada tipo de sistema
         colors = ['#2ecc71', '#e74c3c', '#95a5a6']  # Verde para Público, Rojo para Privado, Gris para Otros
         
@@ -423,9 +418,60 @@ with tab1:
         # Mostrar el gráfico interactivo en Streamlit
         st.plotly_chart(fig, use_container_width=True)
         
-        st.markdown("#### Tabla de Distribución por Región")
-        st.dataframe(region_counts, hide_index=True,
-                    column_config={"Porcentaje": st.column_config.NumberColumn(format="%.1f%%")})
+        # Treemap de Distribución Regional por Complejidad
+        if "RegionGlosa" in df_filtered.columns and "NivelComplejidadEstabGlosa" in df_filtered.columns:
+            # Filtrar solo los niveles de complejidad especificados
+            niveles_complejidad = ['Alta Complejidad', 'Mediana Complejidad', 'Baja Complejidad']
+            df_treemap = df_filtered[df_filtered['NivelComplejidadEstabGlosa'].isin(niveles_complejidad)].copy()
+            
+            # Crear DataFrame para el treemap
+            treemap_data = df_treemap.groupby(['RegionGlosa', 'NivelComplejidadEstabGlosa']).size().reset_index(name='Cantidad')
+            
+            # Calcular totales por región para porcentajes relativos
+            region_totals = treemap_data.groupby('RegionGlosa')['Cantidad'].sum().reset_index()
+            region_totals = region_totals.rename(columns={'Cantidad': 'Total_Region'})
+            
+            # Unir con los datos originales
+            treemap_data = treemap_data.merge(region_totals, on='RegionGlosa')
+            
+            # Calcular porcentajes relativos a cada región
+            treemap_data['Porcentaje'] = (treemap_data['Cantidad'] / treemap_data['Total_Region'] * 100).round(1)
+            
+            # Crear treemap
+            fig_treemap = px.treemap(
+                treemap_data,
+                path=['RegionGlosa', 'NivelComplejidadEstabGlosa'],
+                values='Cantidad',
+                title='Distribución Regional por Nivel de Complejidad',
+                color='RegionGlosa',
+                color_discrete_sequence=px.colors.qualitative.Set3,
+                custom_data=['Cantidad', 'Porcentaje', 'Total_Region']  # Datos adicionales para el texto
+            )
+            
+            # Actualizar el diseño y texto
+            fig_treemap.update_traces(
+                textinfo='label+text',  # Mostrar etiqueta y texto personalizado
+                texttemplate="%{label}<br>%{customdata[0]:,} (%{customdata[1]:.1f}%)",  # Usa los datos de custom_data
+                textposition="top left",  # Posición del texto
+                textfont=dict(size=11),  # Tamaño de la fuente reducido para acomodar más texto
+                hovertemplate='<b>%{label}</b><br>' +
+                             'Cantidad: %{customdata[0]:,}<br>' +
+                             'Porcentaje de la región: %{customdata[1]:.1f}%<br>' +
+                             'Total regional: %{customdata[2]:,}<extra></extra>'  # Tooltip mejorado
+            )
+            
+            fig_treemap.update_layout(
+                height=800,
+                title={
+                    'text': 'Distribución Regional por Nivel de Complejidad',
+                    'y': 0.95,
+                    'x': 0.5,
+                    'xanchor': 'center',
+                    'yanchor': 'top'
+                }
+            )
+            
+            st.plotly_chart(fig_treemap, use_container_width=True)
     else:
         st.warning("No se encontraron las columnas necesarias en los datos")
 
@@ -850,7 +896,7 @@ st.markdown("""
 
 Desarrollado por: Rodrigo Muñoz Soto  
 📧 munozsoto.rodrigo@gmail.com | 🔗 [GitHub: rodrigooig](https://github.com/rodrigooig) | 💼 [LinkedIn](https://www.linkedin.com/in/munozsoto-rodrigo/)  
-Versión: 0.1.1
+Versión: 0.1.2
 """)
 st.markdown("""
 <style>
