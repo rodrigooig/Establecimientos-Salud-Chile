@@ -3,7 +3,24 @@
 Todas las modificaciones notables a este proyecto serán documentadas en este archivo.
 
 
-## [0.0.3] - 2024-03-07
+## [0.1.1] - 2024-03-10
+
+### Modificado
+- Optimización del gráfico de tipos de establecimientos:
+  - Limitado a mostrar los 20 tipos más frecuentes para mejor legibilidad
+  - Aumentada la altura del gráfico para mejor visualización
+  - Mejorado el espaciado entre barras para facilitar la lectura
+  - Mantenidas las etiquetas con cantidad y porcentaje para cada tipo
+
+## [0.1.0] - 2024-03-07
+
+### Añadido
+- Nueva pestaña "Evolución Histórica" con gráfico interactivo que muestra la inauguración de establecimientos de salud por año desde 2010
+- Visualización de tendencias de inauguración por nivel de complejidad (Alta, Mediana y Baja)
+- Funcionalidades interactivas: popups al pasar el cursor, zoom, cambio de escala (lineal/logarítmica)
+- Tabla de datos con información detallada de inauguraciones por año
+- Guía visual para ayudar a los usuarios a interactuar con el gráfico
+- Gráficos de donut interactivos para visualizar la distribución por niveles de atención y complejidad
 
 ### Modificado
 - Reordenamiento de elementos en la pestaña "Distribución Geográfica": ahora el mapa interactivo aparece antes que los gráficos y tablas de distribución por región
@@ -13,6 +30,9 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 - Simplificación de la interfaz: eliminación de CSS innecesario y uso de elementos nativos de Streamlit
 - Optimización de tiempos de carga: splash screen solo para la carga del mapa
 - Restauración de la fuente personalizada Roboto para mantener la estética original
+- Adición de líneas de separación entre elementos para mejorar la organización visual
+- Reemplazo de gráficos estáticos por visualizaciones interactivas para mejor experiencia de usuario
+- Conversión de gráficos de pie (torta) a gráficos de donut (anillo) interactivos para mejor visualización y experiencia de usuario
 
 ## [0.0.2] - 2025-03-05
 

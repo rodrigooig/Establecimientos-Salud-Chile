@@ -5,6 +5,8 @@ import seaborn as sns
 import numpy as np
 import matplotlib
 import folium
+import plotly.express as px
+import plotly.graph_objects as go
 from streamlit_folium import folium_static
 from folium.plugins import MarkerCluster
 
@@ -31,11 +33,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Barra lateral con controles personalizados
-st.sidebar.title("Configuración")
-st.sidebar.caption("Personalice su visualización")
-st.sidebar.markdown("## 👋 ¡Bienvenido!")
-st.sidebar.markdown("En esta app podrás explorar datos de los establecimientos de salud en Chile.")
-st.sidebar.markdown("Puedes revisar el código fuente en [GitHub](https://github.com/rodrigooig/establecimientos-salud-chile)")
+st.sidebar.title("¡Bienvenido!👋")
+st.sidebar.caption("En esta app podrás explorar datos de los establecimientos de salud en Chile.")
+st.sidebar.caption("Puedes revisar el código fuente en [GitHub](https://github.com/rodrigooig/establecimientos-salud-chile)")
 
 # Función para cargar los datos
 @st.cache_data
@@ -180,9 +180,12 @@ with col3:
     else:
         st.metric("Columnas Disponibles", f"{len(df_filtered.columns)}")
 
+# Agregar línea de separación después de la información general
+st.divider()
+
 # Pestañas para organizar el contenido
-tab1, tab2, tab3, tab4 = st.tabs(["Distribución Geográfica", "Tipos de Establecimientos", 
-                                "Niveles de Atención", "Datos Brutos"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Distribución Geográfica", "Tipos de Establecimientos", 
+                                "Niveles de Atención", "Evolución Histórica", "Datos Brutos"])
 
 # Tab 1: Distribución Geográfica
 with tab1:
@@ -371,34 +374,54 @@ with tab1:
         
         # Mostrar gráfico y tabla uno debajo del otro (sin columnas)
         st.markdown("#### Gráfico de Distribución por Región y Sistema de Salud")
-        fig, ax = plt.subplots(figsize=(12, 10))
-        # Configurar el gráfico para mostrar correctamente los acentos
-        plt.rcParams['font.family'] = 'DejaVu Sans'
         
         # Definir colores para cada tipo de sistema
         colors = ['#2ecc71', '#e74c3c', '#95a5a6']  # Verde para Público, Rojo para Privado, Gris para Otros
         
-        # Crear el gráfico de barras apiladas
-        bottom = np.zeros(len(region_sistema))
+        # Crear gráfico de barras apiladas interactivo con Plotly
+        fig = go.Figure()
         
+        # Añadir una barra para cada tipo de sistema
         for idx, col in enumerate(['Público', 'Privado', 'Otros']):
-            ax.barh(region_sistema['RegionGlosa'], 
-                   region_sistema[col], 
-                   left=bottom, 
-                   color=colors[idx], 
-                   label=col)
-            bottom += region_sistema[col]
+            fig.add_trace(go.Bar(
+                name=col,
+                y=region_sistema['RegionGlosa'],
+                x=region_sistema[col],
+                orientation='h',
+                marker_color=colors[idx],
+                hovertemplate='<b>%{y}</b><br>' +
+                             col + ': <b>%{x}</b><extra></extra>'
+            ))
         
-        ax.set_title('Establecimientos por Región y Sistema de Salud', fontsize=14)
-        ax.set_xlabel('Cantidad', fontsize=12)
-        ax.set_ylabel('Región', fontsize=12)
+        # Actualizar el diseño del gráfico
+        fig.update_layout(
+            title={
+                'text': 'Establecimientos por Región y Sistema de Salud',
+                'y': 0.95,
+                'x': 0.5,
+                'xanchor': 'center',
+                'yanchor': 'top',
+                'font': dict(size=18)
+            },
+            barmode='stack',
+            yaxis={'categoryorder': 'total ascending'},
+            height=600,
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="center",
+                x=0.5,
+                title='Sistema de Salud'
+            ),
+            margin=dict(l=50, r=50, t=100, b=50),
+            xaxis_title='Cantidad de Establecimientos',
+            yaxis_title='Región'
+        )
         
-        # Añadir leyenda en una posición adecuada
-        plt.legend(title='Sistema de Salud', bbox_to_anchor=(1.05, 1), loc='upper left')
-        
-        # Asegurar que las etiquetas del eje y se muestren completas
-        plt.tight_layout()
-        st.pyplot(fig)
+        # Mostrar el gráfico interactivo en Streamlit
+        st.plotly_chart(fig, use_container_width=True)
         
         st.markdown("#### Tabla de Distribución por Región")
         st.dataframe(region_counts, hide_index=True,
@@ -426,26 +449,45 @@ with tab2:
         
         # Spinner para la generación del gráfico
         with st.spinner('Generando visualización...'):
-            fig, ax = plt.subplots(figsize=(10, 8))
-            # Configurar el gráfico para mostrar correctamente los acentos
-            plt.rcParams['font.family'] = 'DejaVu Sans'
+            # Crear gráfico de barras horizontal interactivo con Plotly
+            fig = go.Figure()
             
-            # Usar una paleta de colores más atractiva
-            colors = sns.color_palette('Blues_r', n_colors=len(tipo_counts.head(10)))
-            bars = sns.barplot(x='Cantidad', y='Tipo', data=tipo_counts.head(10), ax=ax, palette=colors)
+            # Usar los 20 tipos más frecuentes
+            tipos_data = tipo_counts.head(20)
             
-            # Añadir etiquetas de valores
-            for i, p in enumerate(bars.patches):
-                width = p.get_width()
-                ax.text(width + 5, p.get_y() + p.get_height()/2, f'{width:.0f}', 
-                        ha='left', va='center', fontweight='bold')
+            # Añadir la barra principal
+            fig.add_trace(go.Bar(
+                x=tipos_data['Cantidad'],
+                y=tipos_data['Tipo'],
+                orientation='h',
+                marker_color=px.colors.sequential.Blues[-2],  # Usar un tono de azul consistente
+                hovertemplate='<b>%{y}</b><br>' +
+                             'Cantidad: <b>%{x}</b><br>' +
+                             'Porcentaje: <b>%{text}</b><extra></extra>',
+                text=[f'{n} ({p:.1f}%)' for n, p in zip(tipos_data['Cantidad'], tipos_data['Porcentaje'])],
+                textposition='outside',
+            ))
             
-            ax.set_title('Principales Tipos de Establecimientos', fontsize=14)
-            ax.set_xlabel('Cantidad', fontsize=12)
-            ax.set_ylabel('Tipo', fontsize=12)
-            # Asegurar que las etiquetas del eje y se muestren completas
-            plt.tight_layout()
-            st.pyplot(fig)
+            # Actualizar el diseño del gráfico
+            fig.update_layout(
+                title={
+                    'text': 'Tipos de Establecimientos',
+                    'y': 0.95,
+                    'x': 0.5,
+                    'xanchor': 'center',
+                    'yanchor': 'top',
+                    'font': dict(size=18)
+                },
+                height=max(500, len(tipos_data) * 35),  # Aumentar el factor de multiplicación de 25 a 35
+                margin=dict(l=50, r=150, t=80, b=50),  # Mantener los márgenes
+                xaxis_title='Cantidad de Establecimientos',
+                yaxis_title='Tipo de Establecimiento',
+                yaxis={'categoryorder': 'total ascending'},  # Ordenar de menor a mayor
+                showlegend=False
+            )
+            
+            # Mostrar el gráfico interactivo en Streamlit
+            st.plotly_chart(fig, use_container_width=True)
         
         st.subheader("Tabla de Tipos de Establecimientos")
         st.dataframe(tipo_counts, hide_index=True,
@@ -470,36 +512,64 @@ with tab3:
             nivel_counts = df_filtered['NivelAtencionEstabglosa'].value_counts().reset_index()
             nivel_counts.columns = ['Nivel', 'Cantidad']
             
-            fig, ax = plt.subplots(figsize=(8, 8))
-            # Configurar el gráfico para mostrar correctamente los acentos
-            plt.rcParams['font.family'] = 'DejaVu Sans'
+            # Ordenar de mayor a menor cantidad
+            nivel_counts = nivel_counts.sort_values('Cantidad', ascending=True)  # Ordenar ascendente para que aparezca en sentido horario
             
-            # Usar colores más atractivos y consistentes con el tema
-            colors = sns.color_palette('Blues', n_colors=len(nivel_counts))
+            # Usar paleta de colores pastel
+            colors = px.colors.qualitative.Pastel
             
-            # Crear gráfico de torta con mejor formato
-            wedges, texts, autotexts = plt.pie(
-                nivel_counts['Cantidad'], 
-                labels=nivel_counts['Nivel'], 
-                autopct='%1.1f%%', 
-                startangle=90, 
-                colors=colors, 
-                textprops={'fontsize': 12},
-                wedgeprops={'edgecolor': 'white', 'linewidth': 2},
-                shadow=True
+            # Crear gráfico de donut interactivo con Plotly
+            fig = go.Figure(data=[go.Pie(
+                labels=nivel_counts['Nivel'],
+                values=nivel_counts['Cantidad'],
+                hole=0.4,
+                marker=dict(colors=colors, line=dict(color='white', width=2)),
+                textinfo='label+percent',
+                textposition='outside',
+                textfont=dict(size=12),
+                hoverinfo='label+value+percent',
+                hovertemplate='<b>%{label}</b><br>Cantidad: <b>%{value}</b><br>Porcentaje: <b>%{percent}</b><extra></extra>',
+                direction='clockwise',
+                sort=True
+            )])
+            
+            # Configurar el diseño del gráfico
+            fig.update_layout(
+                title={
+                    'text': 'Distribución por Nivel de Atención',
+                    'y': 0.95,
+                    'x': 0.5,
+                    'xanchor': 'center',
+                    'yanchor': 'top',
+                    'font': dict(size=18)
+                },
+                showlegend=True,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=-0.2,
+                    xanchor="center",
+                    x=0.5
+                ),
+                height=500,
+                annotations=[
+                    dict(
+                        text='Niveles<br>de Atención',
+                        x=0.5,
+                        y=0.5,
+                        font=dict(size=15),
+                        showarrow=False
+                    )
+                ]
             )
             
-            # Mejorar la visibilidad del texto
-            for autotext in autotexts:
-                autotext.set_color('white')
-                autotext.set_fontweight('bold')
-                
-            plt.axis('equal')
-            plt.title('Distribución por Nivel de Atención', fontsize=14, pad=20)
-            plt.tight_layout()
-            st.pyplot(fig)
+            # Mostrar el gráfico interactivo en Streamlit
+            st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("No se encontró la columna 'NivelAtencionEstabglosa' en los datos")
+    
+    # Agregar línea de separación
+    st.divider()
     
     # Gráfico de Nivel de Complejidad
     st.subheader("Distribución por Nivel de Complejidad")
@@ -507,21 +577,232 @@ with tab3:
         complej_counts = df_filtered['NivelComplejidadEstabGlosa'].value_counts().reset_index()
         complej_counts.columns = ['Complejidad', 'Cantidad']
         
-        fig, ax = plt.subplots(figsize=(8, 8))
-        # Configurar el gráfico para mostrar correctamente los acentos
-        plt.rcParams['font.family'] = 'DejaVu Sans'
-        colors = sns.color_palette('pastel')[0:5]
-        plt.pie(complej_counts['Cantidad'], labels=complej_counts['Complejidad'],
-               autopct='%1.1f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
-        plt.axis('equal')
-        plt.title('Distribución por Nivel de Complejidad', fontsize=14)
-        plt.tight_layout()
-        st.pyplot(fig)
+        # Ordenar de mayor a menor cantidad
+        complej_counts = complej_counts.sort_values('Cantidad', ascending=True)  # Ordenar ascendente para que aparezca en sentido horario
+        
+        # Usar paleta de colores pastel
+        colors = px.colors.qualitative.Pastel
+        
+        # Crear gráfico de donut interactivo con Plotly
+        fig = go.Figure(data=[go.Pie(
+            labels=complej_counts['Complejidad'],
+            values=complej_counts['Cantidad'],
+            hole=0.4,
+            marker=dict(colors=colors, line=dict(color='white', width=2)),
+            textinfo='label+percent',
+            textposition='outside',
+            textfont=dict(size=12),
+            hoverinfo='label+value+percent',
+            hovertemplate='<b>%{label}</b><br>Cantidad: <b>%{value}</b><br>Porcentaje: <b>%{percent}</b><extra></extra>',
+            direction='clockwise',
+            sort=True
+        )])
+        
+        # Configurar el diseño del gráfico
+        fig.update_layout(
+            title={
+                'text': 'Distribución por Nivel de Complejidad',
+                'y': 0.95,
+                'x': 0.5,
+                'xanchor': 'center',
+                'yanchor': 'top',
+                'font': dict(size=18)
+            },
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=-0.2,
+                xanchor="center",
+                x=0.5
+            ),
+            height=500,
+            annotations=[
+                dict(
+                    text='Niveles<br>de Complejidad',
+                    x=0.5,
+                    y=0.5,
+                    font=dict(size=15),
+                    showarrow=False
+                )
+            ]
+        )
+        
+        # Mostrar el gráfico interactivo en Streamlit
+        st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("No se encontró la columna 'NivelComplejidadEstabGlosa' en los datos")
 
-# Tab 4: Datos Brutos
+# Tab 4: Evolución Histórica
 with tab4:
+    st.subheader("Inauguración de Establecimientos de Salud por Año")
+    
+    # Agregar contexto introductorio usando elementos nativos de Streamlit
+    st.info("Este gráfico interactivo muestra la inauguración de establecimientos de salud según su fecha de inicio de funcionamiento desde 2010, agrupados por año y categorizados por nivel de complejidad. Puedes hacer zoom, pasar el cursor sobre los puntos para ver detalles, y más.")
+    
+    # Verificar si existen las columnas necesarias
+    if "FechaInicioFuncionamientoEstab" in df_filtered.columns and "NivelComplejidadEstabGlosa" in df_filtered.columns:
+        # Spinner para el procesamiento de datos y generación del gráfico
+        with st.spinner('Procesando datos históricos...'):
+            # Crear una copia del DataFrame para no modificar el original
+            df_historico = df_filtered.copy()
+            
+            # Convertir la columna de fecha a tipo datetime
+            try:
+                df_historico['FechaInicioFuncionamientoEstab'] = pd.to_datetime(
+                    df_historico['FechaInicioFuncionamientoEstab'], 
+                    errors='coerce'  # Convertir errores a NaT
+                )
+                
+                # Filtrar registros con fechas válidas
+                df_historico = df_historico.dropna(subset=['FechaInicioFuncionamientoEstab'])
+                
+                # Extraer el año de la fecha
+                df_historico['Año'] = df_historico['FechaInicioFuncionamientoEstab'].dt.year
+                
+                # Filtrar solo desde 2010 en adelante
+                df_historico = df_historico[df_historico['Año'] >= 2010]
+                
+                # Filtrar solo los niveles de complejidad solicitados
+                niveles_complejidad = ['Alta Complejidad', 'Mediana Complejidad', 'Baja Complejidad']
+                df_historico = df_historico[df_historico['NivelComplejidadEstabGlosa'].isin(niveles_complejidad)]
+                
+                if len(df_historico) > 0:
+                    # Agrupar por año y nivel de complejidad
+                    df_agrupado = df_historico.groupby(['Año', 'NivelComplejidadEstabGlosa']).size().reset_index(name='Cantidad')
+                    
+                    # Definir colores para cada nivel de complejidad
+                    colores = {
+                        'Alta Complejidad': '#e74c3c',    # Rojo
+                        'Mediana Complejidad': '#f39c12', # Naranja
+                        'Baja Complejidad': '#2ecc71'     # Verde
+                    }
+                    
+                    # Crear un gráfico interactivo con Plotly
+                    fig = go.Figure()
+                    
+                    # Añadir una línea para cada nivel de complejidad
+                    for nivel in niveles_complejidad:
+                        df_nivel = df_agrupado[df_agrupado['NivelComplejidadEstabGlosa'] == nivel]
+                        if not df_nivel.empty:
+                            fig.add_trace(go.Scatter(
+                                x=df_nivel['Año'],
+                                y=df_nivel['Cantidad'],
+                                mode='lines+markers+text',
+                                name=nivel,
+                                line=dict(color=colores.get(nivel, '#3498db'), width=3),
+                                marker=dict(size=10, symbol='circle'),
+                                text=df_nivel['Cantidad'],
+                                textposition='top center',
+                                textfont=dict(size=12, color='black'),
+                                hovertemplate='<b>%{x}</b><br>' +
+                                             '<b>' + nivel + '</b><br>' +
+                                             'Establecimientos inaugurados: <b>%{y}</b><extra></extra>'
+                            ))
+                    
+                    # Configurar el diseño del gráfico
+                    fig.update_layout(
+                        title={
+                            'text': 'Inauguración de Establecimientos de Salud por Nivel de Complejidad (desde 2010)',
+                            'y': 0.95,
+                            'x': 0.5,
+                            'xanchor': 'center',
+                            'yanchor': 'top',
+                            'font': dict(size=20)
+                        },
+                        xaxis_title='Año de Inauguración',
+                        yaxis_title='Cantidad de Establecimientos Inaugurados',
+                        
+                        hovermode='closest',
+                        xaxis=dict(
+                            tickmode='array',
+                            tickvals=sorted(df_historico['Año'].unique()),
+                            ticktext=sorted(df_historico['Año'].unique()),
+                            gridcolor='lightgray',
+                            gridwidth=0.5
+                        ),
+                        yaxis=dict(
+                            gridcolor='lightgray',
+                            gridwidth=0.5
+                        ),
+                        plot_bgcolor='white',
+                        height=600,
+                        width=900,
+                        margin=dict(l=50, r=50, t=80, b=50),
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="center",
+                            x=0.5
+                        )
+                    )
+                    
+                    # Añadir herramientas interactivas
+                    fig.update_layout(
+                        updatemenus=[
+                            dict(
+                                type="buttons",
+                                direction="left",
+                                buttons=[
+                                    dict(
+                                        args=[{"yaxis.type": "linear"}],
+                                        label="Escala Lineal",
+                                        method="relayout"
+                                    ),
+                                    dict(
+                                        args=[{"yaxis.type": "log"}],
+                                        label="Escala Logarítmica",
+                                        method="relayout"
+                                    )
+                                ],
+                                pad={"r": 10, "t": 10},
+                                showactive=True,
+                                x=0.1,
+                                xanchor="left",
+                                y=1.1,
+                                yanchor="top"
+                            )
+                        ]
+                    )
+                    
+                    # Añadir anotaciones para guiar al usuario
+
+                    
+                    # Mostrar el gráfico interactivo en Streamlit
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Agregar línea de separación
+                    st.divider()
+                    
+                    # Mostrar tabla con los datos
+                    st.subheader("Tabla de Inauguraciones por Año (desde 2010)")
+                    
+                    # Crear una tabla más legible
+                    tabla_historica = df_agrupado.pivot_table(
+                        values='Cantidad', 
+                        index='Año',
+                        columns='NivelComplejidadEstabGlosa', 
+                        aggfunc='sum'
+                    ).fillna(0).astype(int)
+                    
+                    # Ordenar por año
+                    tabla_historica = tabla_historica.sort_index()
+                    
+                    # Mostrar la tabla
+                    st.dataframe(
+                        tabla_historica,
+                        use_container_width=True
+                    )
+                else:
+                    st.warning("No hay suficientes datos para generar el gráfico histórico con los filtros seleccionados.")
+            except Exception as e:
+                st.error(f"Error al procesar los datos históricos: {str(e)}")
+    else:
+        st.warning("No se encontraron las columnas necesarias para el análisis histórico.")
+
+# Tab 5: Datos Brutos
+with tab5:
     st.subheader("Muestra de Datos")
     
     # Agregar descripción usando elementos nativos de Streamlit
@@ -569,7 +850,7 @@ st.markdown("""
 
 Desarrollado por: Rodrigo Muñoz Soto  
 📧 munozsoto.rodrigo@gmail.com | 🔗 [GitHub: rodrigooig](https://github.com/rodrigooig) | 💼 [LinkedIn](https://www.linkedin.com/in/munozsoto-rodrigo/)  
-Versión: 0.0.4
+Versión: 0.1.1
 """)
 st.markdown("""
 <style>
