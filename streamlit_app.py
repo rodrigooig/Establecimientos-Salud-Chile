@@ -220,7 +220,12 @@ def visualizar_mapa(map_data):
         st.warning("No hay datos con coordenadas geográficas válidas para mostrar en el mapa.")
         return
 
-    st.info(f"**Guía de colores:** {' '.join([f'{v[0]} {k}' for k, v in SYSTEM_COLORS.items()])}")
+    # Use markdown with HTML for colored circles
+    color_guide_html = ' '.join([
+        f'<span style="display:inline-block; background-color:{color}; border-radius:50%; width:10px; height:10px; margin-right:5px; vertical-align: middle;"></span> {name}'
+        for name, color in SYSTEM_COLORS.items()
+    ])
+    st.markdown(f"**Guía de colores:** {color_guide_html}", unsafe_allow_html=True)
 
     with st.spinner('Construyendo mapa interactivo...'):
         m = folium.Map(location=[-33.45694, -70.64827], zoom_start=5)
