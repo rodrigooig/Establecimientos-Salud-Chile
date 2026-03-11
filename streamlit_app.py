@@ -21,12 +21,28 @@ COL_LAT = "Latitud"
 COL_LON = "Longitud"
 COL_NOMBRE = "EstablecimientoGlosa"
 COL_COMUNA = "ComunaGlosa"
+COL_DEPENDENCIA = "DependenciaAdministrativa"
+COL_TIPO_ATENCION = "TipoAtencionEstabGlosa"
+COL_TIPO_URGENCIA = "TipoUrgencia"
 
 SYSTEM_COLORS = {'Público': '#2ecc71', 'Privado': '#e74c3c', 'Otros': '#95a5a6'}
 COMPLEXITY_COLORS = {
-    'Alta Complejidad': '#e74c3c',    # Rojo
-    'Mediana Complejidad': '#f39c12', # Naranja
-    'Baja Complejidad': '#2ecc71'     # Verde
+    'Alta Complejidad': '#e74c3c',
+    'Mediana Complejidad': '#f39c12',
+    'Baja Complejidad': '#2ecc71'
+}
+URGENCY_COLORS = {
+    'Urgencia Hospitalaria (UEH)': '#e74c3c',
+    'Urgencia Ambulatoria (SAPU)': '#f39c12',
+    'Urgencia Ambulatoria (SAR)': '#3498db',
+    'Urgencia Ambulatoria (SUR)': '#2ecc71',
+    'Otros': '#95a5a6',
+}
+DEPENDENCY_COLORS = {
+    'Municipal': '#3498db',
+    'Privado': '#e74c3c',
+    'Servicio de Salud': '#2ecc71',
+    'Otro': '#95a5a6',
 }
 DEFAULT_PLOTLY_COLORS = px.colors.qualitative.Pastel
 
@@ -57,26 +73,17 @@ st.markdown("""
 
 @st.cache_data
 def load_data(path=DATA_PATH):
-    """Loads data from CSV, handling potential encoding issues."""
     try:
         try:
             df = pd.read_csv(path, sep=';', encoding='utf-8')
         except UnicodeDecodeError:
             df = pd.read_csv(path, sep=';', encoding='latin1')
-
-        # Clean object columns encoding if necessary
-        for col in df.select_dtypes(include=['object']).columns:
-            try:
-                df[col] = df[col].astype('unicode_escape').str.encode('latin1').str.decode('utf-8', errors='replace')
-            except Exception: # Broad except to catch various potential string issues
-                pass # Ignore columns that can't be decoded
-
         return df, None
     except Exception as e:
         return None, str(e)
 
+
 def create_multiselect_filter(df, column_name, label, key):
-    """Creates a multiselect widget in the sidebar if the column exists."""
     if column_name in df.columns:
         options = sorted(df[column_name].unique().tolist())
         return st.sidebar.multiselect(
@@ -88,104 +95,40 @@ def create_multiselect_filter(df, column_name, label, key):
         )
     return []
 
+
 def apply_filters(df, filters):
-    """Applies a dictionary of filters to the DataFrame."""
     df_filtered = df.copy()
     for column, selected_values in filters.items():
         if selected_values:
             df_filtered = df_filtered[df_filtered[column].isin(selected_values)]
     return df_filtered
 
-def plot_horizontal_bar(df, category_col, title, xaxis_title, yaxis_title, n_top=20):
-    """Generates and displays a Plotly horizontal bar chart."""
-    if category_col not in df.columns:
-        st.warning(f"No se encontró la columna '{category_col}' en los datos.")
-        return
 
-    with st.spinner('Generando visualización...'):
-        counts = df[category_col].value_counts().reset_index()
-        counts.columns = [yaxis_title, xaxis_title] # Use titles for column names
-        total_count = len(df)
-        counts['Porcentaje'] = (counts[xaxis_title] / total_count * 100)
+def simplify_dependency(val):
+    if val in ('Municipal', 'Privado', 'Servicio de Salud'):
+        return val
+    return 'Otro'
 
-        data_to_plot = counts.head(n_top)
 
-        fig = go.Figure(go.Bar(
-            x=data_to_plot[xaxis_title],
-            y=data_to_plot[yaxis_title],
-            orientation='h',
-            marker_color=px.colors.sequential.Blues[-2],
-            text=[f'{n} ({p:.1f}%)' for n, p in zip(data_to_plot[xaxis_title], data_to_plot['Porcentaje'])],
-            textposition='outside',
-            hovertemplate=f'<b>%{{y}}</b><br>{xaxis_title}: <b>%{{x}}</b><br>Porcentaje: <b>%{{text}}</b><extra></extra>'
-        ))
-
-        fig.update_layout(
-            title={'text': title, 'y': 0.95, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top', 'font': dict(size=18)},
-            height=max(500, len(data_to_plot) * 35),
-            margin=dict(l=50, r=150, t=80, b=50),
-            xaxis_title=xaxis_title,
-            yaxis_title=yaxis_title,
-            yaxis={'categoryorder': 'total ascending'},
-            showlegend=False
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    return counts # Return the full counts DataFrame for potential table display
-
-def plot_donut(df, category_col, title, center_text):
-    """Generates and displays a Plotly donut chart."""
-    if category_col not in df.columns:
-        st.warning(f"No se encontró la columna '{category_col}' en los datos.")
-        return
-
-    with st.spinner(f'Analizando {category_col}...'):
-        counts = df[category_col].value_counts().reset_index()
-        counts.columns = ['Label', 'Cantidad']
-        counts = counts.sort_values('Cantidad', ascending=True) # For clockwise display
-
-        fig = go.Figure(data=[go.Pie(
-            labels=counts['Label'],
-            values=counts['Cantidad'],
-            hole=0.4,
-            marker=dict(colors=DEFAULT_PLOTLY_COLORS, line=dict(color='white', width=2)),
-            textinfo='label+percent',
-            textposition='outside',
-            textfont=dict(size=12),
-            hoverinfo='label+value+percent',
-            hovertemplate='<b>%{label}</b><br>Cantidad: <b>%{value}</b><br>Porcentaje: <b>%{percent}</b><extra></extra>',
-            direction='clockwise',
-            sort=True # Already sorted, but good practice
-        )])
-
-        fig.update_layout(
-            title={'text': title, 'y': 0.95, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top', 'font': dict(size=18)},
-            showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
-            height=500,
-            annotations=[dict(text=center_text, x=0.5, y=0.5, font=dict(size=15), showarrow=False)]
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-# --- Map Specific Helpers (Adapted from original) ---
+# --- Map Helpers ---
 @st.cache_data
 def procesar_datos_mapa(map_data):
-    """Processes data for map visualization (cached)."""
     map_data = map_data.copy()
     map_data['location'] = list(zip(map_data[COL_LAT], map_data[COL_LON]))
     location_counts = pd.DataFrame(map_data['location'].value_counts()).reset_index()
     location_counts.columns = ['coords', 'count']
     return location_counts, map_data
 
+
 def obtener_color_sistema(sistema_principal):
-    """Determines marker color based on health system."""
-    return SYSTEM_COLORS.get(sistema_principal, 'gray') # Use constant map
+    return SYSTEM_COLORS.get(sistema_principal, 'gray')
+
 
 def crear_texto_popup(establecimientos, count):
-    """Creates HTML popup text for map markers."""
     popup_text = f"Cantidad: {count} establecimiento(s)"
 
     def formatear_lista(items, max_items=5):
-        items = list(items) # Ensure it's a list
+        items = list(items)
         if len(items) > max_items:
             return "<br>".join(items[:max_items]) + f"<br>... y {len(items) - max_items} más"
         return "<br>".join(items)
@@ -209,18 +152,17 @@ def crear_texto_popup(establecimientos, count):
 
     return popup_text, color
 
+
 def visualizar_mapa(map_data):
-    """Creates and displays the Folium map."""
     if not all(col in map_data.columns for col in [COL_LAT, COL_LON]):
         st.warning(f"Faltan columnas '{COL_LAT}' o '{COL_LON}' para el mapa.")
         return
 
     map_data_valid = map_data.dropna(subset=[COL_LAT, COL_LON]).copy()
     if map_data_valid.empty:
-        st.warning("No hay datos con coordenadas geográficas válidas para mostrar en el mapa.")
+        st.warning("No hay datos con coordenadas geográficas válidas.")
         return
 
-    # Use markdown with HTML for colored circles
     color_guide_html = ' '.join([
         f'<span style="display:inline-block; background-color:{color}; border-radius:50%; width:10px; height:10px; margin-right:5px; vertical-align: middle;"></span> {name}'
         for name, color in SYSTEM_COLORS.items()
@@ -230,12 +172,11 @@ def visualizar_mapa(map_data):
     with st.spinner('Construyendo mapa interactivo...'):
         m = folium.Map(location=[-33.45694, -70.64827], zoom_start=5)
         marker_cluster = MarkerCluster().add_to(m)
-        location_counts, map_data_processed = procesar_datos_mapa(map_data_valid) # Use cached function
+        location_counts, map_data_processed = procesar_datos_mapa(map_data_valid)
 
         for _, row in location_counts.iterrows():
             lat, lon = row['coords']
             count = row['count']
-            # Efficient filtering using .loc
             establecimientos = map_data_processed.loc[
                 (map_data_processed[COL_LAT] == lat) & (map_data_processed[COL_LON] == lon)
             ]
@@ -244,7 +185,7 @@ def visualizar_mapa(map_data):
             folium.CircleMarker(
                 location=[lat, lon],
                 radius=8,
-                popup=folium.Popup(popup_text, max_width=300), # Add max_width
+                popup=folium.Popup(popup_text, max_width=300),
                 color=color,
                 fill=True,
                 fill_color=color,
@@ -252,6 +193,7 @@ def visualizar_mapa(map_data):
             ).add_to(marker_cluster)
 
         folium_static(m, width=1000, height=600)
+
 
 # --- Main App Logic ---
 
@@ -261,119 +203,132 @@ with st.spinner('Cargando datos de establecimientos de salud...'):
 
 if error:
     st.error(f"Error al cargar los datos: {error}")
-    st.stop() # Stop execution if data loading fails
+    st.stop()
 
-# Sidebar Setup
-st.sidebar.title("¡Bienvenido!👋")
+# Sidebar
+st.sidebar.title("Bienvenido")
 st.sidebar.caption("Explora datos de establecimientos de salud en Chile.")
 st.sidebar.caption("Código fuente en [GitHub](https://github.com/rodrigooig/establecimientos-salud-chile)")
 st.sidebar.markdown("### Información del Dataset")
 st.sidebar.info(f"""
-- **Registros totales:** {len(df)}
+- **Registros totales:** {len(df):,}
 - **Fuente:** Ministerio de Salud de Chile
 """)
 
 # Sidebar Filters
-df_filtered = df # Start with the full dataframe
+df_filtered = df
 if not df.empty:
     st.sidebar.markdown("### Filtros")
 
-    # Reset Button
-    if st.sidebar.button("🔄 Reiniciar Filtros"):
-        keys_to_reset = ['regiones_sel', 'tipos_sel', 'sistemas_sel', 'estados_sel']
+    if st.sidebar.button("Reiniciar Filtros"):
+        keys_to_reset = ['regiones_sel', 'tipos_sel', 'sistemas_sel', 'estados_sel', 'dependencia_sel']
         for key in keys_to_reset:
             st.session_state[key] = []
         st.rerun()
 
     st.sidebar.markdown("---")
 
-    # Create filters using helper
     filters_selected = {
         COL_REGION: create_multiselect_filter(df, COL_REGION, "Regiones", 'regiones_sel'),
         COL_TIPO_ESTAB: create_multiselect_filter(df, COL_TIPO_ESTAB, "Tipos de Establecimiento", 'tipos_sel'),
         COL_SISTEMA: create_multiselect_filter(df, COL_SISTEMA, "Sistema de Salud", 'sistemas_sel'),
-        COL_ESTADO: create_multiselect_filter(df, COL_ESTADO, "Estado de Funcionamiento", 'estados_sel')
+        COL_ESTADO: create_multiselect_filter(df, COL_ESTADO, "Estado de Funcionamiento", 'estados_sel'),
+        COL_DEPENDENCIA: create_multiselect_filter(df, COL_DEPENDENCIA, "Dependencia Administrativa", 'dependencia_sel'),
     }
 
-    # Apply filters using helper
     df_filtered = apply_filters(df, filters_selected)
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown(f"**Establecimientos filtrados:** {len(df_filtered)}")
+    st.sidebar.markdown(f"**Establecimientos filtrados:** {len(df_filtered):,}")
 
 # --- Main Panel ---
-st.title("Análisis de Establecimientos de Salud en Chile")
+st.title("Establecimientos de Salud en Chile")
 
-# KPIs
+# --- KPIs ---
 if not df_filtered.empty:
-    col1, col2, col3 = st.columns(3)
     total_filtered = len(df_filtered)
 
+    # Row 1: Core metrics
+    col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("**Total Establecimientos**", f"{total_filtered}")
-
+        st.metric("Total Establecimientos", f"{total_filtered:,}")
     with col2:
-        if COL_URGENCIA in df_filtered.columns:
-            urgencia_count = df_filtered[COL_URGENCIA].value_counts().get("SI", 0)
-            urgencia_perc = (urgencia_count / total_filtered * 100) if total_filtered else 0
-            st.metric("**Con Servicio de Urgencia**", f"{urgencia_count} ({urgencia_perc:.1f}%)")
+        if COL_TIPO_URGENCIA in df_filtered.columns:
+            urg_count = df_filtered[df_filtered[COL_TIPO_URGENCIA].isin(
+                [k for k in URGENCY_COLORS if k != 'Otros']
+            )].shape[0]
+            if urg_count == 0:
+                urg_count = df_filtered[COL_URGENCIA].value_counts().get("SI", 0) if COL_URGENCIA in df_filtered.columns else 0
+            urg_perc = (urg_count / total_filtered * 100) if total_filtered else 0
+            st.metric("Servicios de Urgencia", f"{urg_count:,} ({urg_perc:.1f}%)")
         else:
-             st.metric("**Con Servicio de Urgencia**", "N/A")
-
-
+            st.metric("Servicios de Urgencia", "N/A")
     with col3:
         if COL_SISTEMA in df_filtered.columns:
             public_count = df_filtered[df_filtered[COL_SISTEMA] == "Público"].shape[0]
             public_perc = (public_count / total_filtered * 100) if total_filtered else 0
-            st.metric("Sistema Público", f"{public_count} ({public_perc:.1f}%)")
+            st.metric("Sistema Público", f"{public_count:,} ({public_perc:.1f}%)")
         else:
-             st.metric("Sistema Público", "N/A")
+            st.metric("Sistema Público", "N/A")
+
+    # Row 2: Structural metrics
+    col4, col5, col6 = st.columns(3)
+    with col4:
+        if COL_TIPO_ATENCION in df_filtered.columns:
+            amb = df_filtered[df_filtered[COL_TIPO_ATENCION].str.contains('Abierta', case=False, na=False)].shape[0]
+            amb_perc = (amb / total_filtered * 100) if total_filtered else 0
+            st.metric("Atención Ambulatoria", f"{amb:,} ({amb_perc:.1f}%)")
+        else:
+            st.metric("Atención Ambulatoria", "N/A")
+    with col5:
+        if COL_COMUNA in df_filtered.columns and COL_URGENCIA in df_filtered.columns:
+            total_comunas = df[COL_COMUNA].nunique()
+            comunas_urg = df_filtered[df_filtered[COL_URGENCIA] == 'SI'][COL_COMUNA].nunique()
+            sin_cobertura = total_comunas - comunas_urg
+            st.metric("Cobertura Comunal de Urgencia", f"{comunas_urg} / {total_comunas}", delta=f"-{sin_cobertura} sin cobertura", delta_color="inverse")
+        else:
+            st.metric("Cobertura Comunal de Urgencia", "N/A")
+    with col6:
+        if COL_DEPENDENCIA in df_filtered.columns:
+            mun = df_filtered[df_filtered[COL_DEPENDENCIA] == 'Municipal'].shape[0]
+            mun_perc = (mun / total_filtered * 100) if total_filtered else 0
+            st.metric("Dependencia Municipal", f"{mun:,} ({mun_perc:.1f}%)")
+        else:
+            st.metric("Dependencia Municipal", "N/A")
 else:
     st.warning("No hay datos para mostrar con los filtros seleccionados.")
-    # Optionally stop if no data? st.stop()
 
+# --- Tabs ---
+tab_titles = ["Panorama Nacional", "Evolución Histórica", "Red de Urgencias", "Explorador de Datos"]
+tab1, tab2, tab3, tab4 = st.tabs(tab_titles)
 
-# Tabs for Content Organization
-tab_titles = ["Distribución Geográfica", "Tipos de Establecimientos",
-              "Niveles de Atención", "Evolución Histórica", "Datos Brutos"]
-tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_titles)
-
-# --- Tab 1: Distribución Geográfica ---
+# =====================================================
+# TAB 1: PANORAMA NACIONAL
+# =====================================================
 with tab1:
-    st.subheader("Distribución Geográfica de Establecimientos")
-    visualizar_mapa(df_filtered) # Use map helper function
+    st.subheader("Distribución Geográfica")
+    visualizar_mapa(df_filtered)
 
-    st.divider() # Add separator
+    st.divider()
 
-    # Stacked Bar Chart: Region vs System
+    # --- Region x System stacked bar ---
     st.subheader('Establecimientos por Región y Sistema de Salud')
     if all(c in df_filtered.columns for c in [COL_REGION, COL_SISTEMA]):
         df_plot = df_filtered.copy()
-        # Group less common systems into 'Otros'
         df_plot[COL_SISTEMA] = df_plot[COL_SISTEMA].apply(
             lambda x: x if x in SYSTEM_COLORS else 'Otros'
         )
 
-        # Use crosstab for counts
-        region_sistema = pd.crosstab(
-            df_plot[COL_REGION],
-            df_plot[COL_SISTEMA]
-        ).reset_index()
-
-        # Ensure all system columns exist, fill with 0 if not
+        region_sistema = pd.crosstab(df_plot[COL_REGION], df_plot[COL_SISTEMA]).reset_index()
         for col in SYSTEM_COLORS.keys():
             if col not in region_sistema.columns:
                 region_sistema[col] = 0
 
-        # Order columns consistently
         ordered_cols = [COL_REGION] + list(SYSTEM_COLORS.keys())
         region_sistema = region_sistema[ordered_cols]
-
-        # Order regions by total count (descending for plot)
         region_total_counts = df_filtered[COL_REGION].value_counts()
         region_sistema = region_sistema.set_index(COL_REGION).loc[region_total_counts.index].reset_index()
 
-        # Create Plotly Figure
         fig_region_sys = go.Figure()
         for col in SYSTEM_COLORS.keys():
             fig_region_sys.add_trace(go.Bar(
@@ -387,235 +342,347 @@ with tab1:
 
         fig_region_sys.update_layout(
             barmode='stack',
-            yaxis={'categoryorder': 'total ascending'}, # Already sorted by total, but good practice
+            yaxis={'categoryorder': 'total ascending'},
             height=600,
             showlegend=True,
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title='Sistema de Salud'),
-            margin=dict(l=50, r=50, t=50, b=50), # Reduced top margin
+            margin=dict(l=50, r=50, t=50, b=50),
             xaxis_title='Cantidad de Establecimientos',
             yaxis_title='Región'
-            # Removed explicit title, using st.subheader above
         )
         st.plotly_chart(fig_region_sys, use_container_width=True)
-    else:
-        st.warning(f"Faltan columnas '{COL_REGION}' o '{COL_SISTEMA}' para el gráfico.")
 
     st.divider()
 
-    # Treemap: Region vs Complexity
-    st.subheader('Distribución Regional por Nivel de Complejidad')
-    if all(c in df_filtered.columns for c in [COL_REGION, COL_NIVEL_COMPLEJIDAD]):
-        niveles_complejidad_filter = list(COMPLEXITY_COLORS.keys()) # Use keys from constant
-        df_treemap = df_filtered[df_filtered[COL_NIVEL_COMPLEJIDAD].isin(niveles_complejidad_filter)].copy()
+    # --- Gobernanza: Region x Dependency ---
+    st.subheader('Gobernanza: Dependencia Administrativa por Región')
+    if all(c in df_filtered.columns for c in [COL_REGION, COL_DEPENDENCIA]):
+        df_gov = df_filtered.copy()
+        df_gov['_dep'] = df_gov[COL_DEPENDENCIA].apply(simplify_dependency)
 
-        if not df_treemap.empty:
-            treemap_data = df_treemap.groupby([COL_REGION, COL_NIVEL_COMPLEJIDAD]).size().reset_index(name='Cantidad')
+        region_dep = pd.crosstab(df_gov[COL_REGION], df_gov['_dep']).reset_index()
+        for col in DEPENDENCY_COLORS.keys():
+            if col not in region_dep.columns:
+                region_dep[col] = 0
 
-            # Calculate totals for percentages
-            region_totals = treemap_data.groupby(COL_REGION)['Cantidad'].sum().reset_index(name='Total_Region')
-            treemap_data = treemap_data.merge(region_totals, on=COL_REGION)
-            treemap_data['Porcentaje'] = (treemap_data['Cantidad'] / treemap_data['Total_Region'] * 100).round(1)
+        ordered_dep_cols = [COL_REGION] + list(DEPENDENCY_COLORS.keys())
+        region_dep = region_dep[[c for c in ordered_dep_cols if c in region_dep.columns]]
+        region_dep['_total'] = region_dep.select_dtypes(include='number').sum(axis=1)
+        region_dep = region_dep.sort_values('_total', ascending=True).drop(columns='_total')
 
-            fig_treemap = px.treemap(
-                treemap_data,
-                path=[COL_REGION, COL_NIVEL_COMPLEJIDAD],
-                values='Cantidad',
-                # title='Distribución Regional por Nivel de Complejidad', # Use subheader
-                color=COL_REGION, # Color by region
-                color_discrete_sequence=px.colors.qualitative.Set3,
-                custom_data=['Cantidad', 'Porcentaje', 'Total_Region']
-            )
+        fig_gov = go.Figure()
+        for dep_name in DEPENDENCY_COLORS.keys():
+            if dep_name in region_dep.columns:
+                fig_gov.add_trace(go.Bar(
+                    name=dep_name,
+                    y=region_dep[COL_REGION],
+                    x=region_dep[dep_name],
+                    orientation='h',
+                    marker_color=DEPENDENCY_COLORS[dep_name],
+                    hovertemplate=f'<b>%{{y}}</b><br>{dep_name}: <b>%{{x}}</b><extra></extra>'
+                ))
 
-            fig_treemap.update_traces(
-                textinfo='label+text',
-                texttemplate="%{label}<br>%{customdata[0]:,} (%{customdata[1]:.1f}%)",
-                textposition="top left",
-                textfont=dict(size=11),
-                hovertemplate='<b>%{label}</b><br>' +
-                             'Cantidad: %{customdata[0]:,}<br>' +
-                             'Porcentaje de la región: %{customdata[1]:.1f}%<br>' +
-                             'Total regional: %{customdata[2]:,}<extra></extra>'
-            )
-
-            fig_treemap.update_layout(
-                height=800,
-                margin=dict(l=20, r=20, t=20, b=20) # Reduced margins
-            )
-            st.plotly_chart(fig_treemap, use_container_width=True)
-        else:
-             st.warning("No hay datos de complejidad válidos para mostrar en el treemap.")
-    else:
-        st.warning(f"Faltan columnas '{COL_REGION}' o '{COL_NIVEL_COMPLEJIDAD}' para el treemap.")
-
-
-# --- Tab 2: Tipos de Establecimientos ---
-with tab2:
-    st.subheader("Tipos de Establecimientos")
-    st.info("Clasificación de establecimientos según características, servicios y complejidad.")
-
-    # Use helper function for the bar chart
-    tipo_counts_df = plot_horizontal_bar(
-        df_filtered,
-        category_col=COL_TIPO_ESTAB,
-        title="Top 20 Tipos de Establecimientos",
-        xaxis_title="Cantidad",
-        yaxis_title="Tipo de Establecimiento",
-        n_top=20
-    )
-
-    # Display table if data was generated
-    if tipo_counts_df is not None and not tipo_counts_df.empty:
-        st.divider()
-        st.subheader("Tabla Completa de Tipos")
-        st.dataframe(
-            tipo_counts_df,
-            hide_index=True,
-            column_config={"Porcentaje": st.column_config.NumberColumn(format="%.1f%%")},
-            use_container_width=True
+        fig_gov.update_layout(
+            barmode='stack',
+            height=600,
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title='Dependencia'),
+            margin=dict(l=50, r=50, t=50, b=50),
+            xaxis_title='Cantidad de Establecimientos',
+            yaxis_title='Región'
         )
-
-
-# --- Tab 3: Niveles de Atención ---
-with tab3:
-    st.subheader("Niveles de Atención y Complejidad")
-    st.info("Capacidad resolutiva y tipo de servicios ofrecidos.")
-
-    # Donut chart for Attention Level
-    plot_donut(
-        df_filtered,
-        category_col=COL_NIVEL_ATENCION,
-        title="Distribución por Nivel de Atención",
-        center_text="Niveles<br>de Atención"
-    )
+        st.plotly_chart(fig_gov, use_container_width=True)
 
     st.divider()
 
-    # Donut chart for Complexity Level
-    plot_donut(
-        df_filtered,
-        category_col=COL_NIVEL_COMPLEJIDAD,
-        title="Distribución por Nivel de Complejidad",
-        center_text="Niveles<br>de Complejidad"
-    )
+    # --- Distribución por Nivel de Atención y Complejidad (side by side) ---
+    st.subheader("Niveles de Atención y Complejidad")
+    col_d1, col_d2 = st.columns(2)
 
-# --- Tab 4: Evolución Histórica ---
-with tab4:
-    st.subheader("Inauguración de Establecimientos por Año (desde 2010)")
-    st.info("Evolución anual por nivel de complejidad. Interactúa con el gráfico.")
+    with col_d1:
+        if COL_NIVEL_ATENCION in df_filtered.columns:
+            counts_na = df_filtered[COL_NIVEL_ATENCION].value_counts().reset_index()
+            counts_na.columns = ['Label', 'Cantidad']
+            fig_na = go.Figure(data=[go.Pie(
+                labels=counts_na['Label'], values=counts_na['Cantidad'],
+                hole=0.4,
+                marker=dict(colors=DEFAULT_PLOTLY_COLORS, line=dict(color='white', width=2)),
+                textinfo='label+percent', textposition='outside', textfont=dict(size=11),
+                hovertemplate='<b>%{label}</b><br>Cantidad: <b>%{value}</b><br>%{percent}<extra></extra>',
+            )])
+            fig_na.update_layout(
+                title={'text': 'Nivel de Atención', 'y': 0.95, 'x': 0.5, 'xanchor': 'center', 'font': dict(size=16)},
+                showlegend=False, height=420,
+                annotations=[dict(text="Atención", x=0.5, y=0.5, font=dict(size=13), showarrow=False)],
+                margin=dict(l=20, r=20, t=60, b=20),
+            )
+            st.plotly_chart(fig_na, use_container_width=True)
+
+    with col_d2:
+        if COL_NIVEL_COMPLEJIDAD in df_filtered.columns:
+            counts_nc = df_filtered[COL_NIVEL_COMPLEJIDAD].value_counts().reset_index()
+            counts_nc.columns = ['Label', 'Cantidad']
+            fig_nc = go.Figure(data=[go.Pie(
+                labels=counts_nc['Label'], values=counts_nc['Cantidad'],
+                hole=0.4,
+                marker=dict(colors=DEFAULT_PLOTLY_COLORS, line=dict(color='white', width=2)),
+                textinfo='label+percent', textposition='outside', textfont=dict(size=11),
+                hovertemplate='<b>%{label}</b><br>Cantidad: <b>%{value}</b><br>%{percent}<extra></extra>',
+            )])
+            fig_nc.update_layout(
+                title={'text': 'Nivel de Complejidad', 'y': 0.95, 'x': 0.5, 'xanchor': 'center', 'font': dict(size=16)},
+                showlegend=False, height=420,
+                annotations=[dict(text="Complejidad", x=0.5, y=0.5, font=dict(size=13), showarrow=False)],
+                margin=dict(l=20, r=20, t=60, b=20),
+            )
+            st.plotly_chart(fig_nc, use_container_width=True)
+
+
+# =====================================================
+# TAB 2: EVOLUCIÓN HISTÓRICA
+# =====================================================
+with tab2:
+    st.subheader("Inauguración de Establecimientos por Año")
+    st.info("Evolución anual de nuevos establecimientos. Ajusta el rango con el slider.")
 
     if all(c in df_filtered.columns for c in [COL_FECHA_INICIO, COL_NIVEL_COMPLEJIDAD]):
-        with st.spinner('Procesando datos históricos...'):
-            df_historico = df_filtered.copy()
-            try:
-                # Convert to datetime, coerce errors, drop invalid dates
-                df_historico[COL_FECHA_INICIO] = pd.to_datetime(df_historico[COL_FECHA_INICIO], errors='coerce')
-                df_historico = df_historico.dropna(subset=[COL_FECHA_INICIO])
+        df_hist = df_filtered.copy()
+        df_hist[COL_FECHA_INICIO] = pd.to_datetime(df_hist[COL_FECHA_INICIO], errors='coerce')
+        df_hist = df_hist.dropna(subset=[COL_FECHA_INICIO])
+        df_hist['Año'] = df_hist[COL_FECHA_INICIO].dt.year.astype(int)
 
-                # Extract year and filter
-                df_historico['Año'] = df_historico[COL_FECHA_INICIO].dt.year
-                df_historico = df_historico[df_historico['Año'] >= 2010]
+        if not df_hist.empty:
+            min_year = max(int(df_hist['Año'].min()), 2000)
+            max_year = int(df_hist['Año'].max())
 
-                # Filter by relevant complexity levels
-                niveles_complejidad_hist = list(COMPLEXITY_COLORS.keys())
-                df_historico = df_historico[df_historico[COL_NIVEL_COMPLEJIDAD].isin(niveles_complejidad_hist)]
+            year_range = st.slider("Rango de años", min_value=min_year, max_value=max_year, value=(min_year, max_year))
+            df_hist = df_hist[(df_hist['Año'] >= year_range[0]) & (df_hist['Año'] <= year_range[1])]
 
-                if not df_historico.empty:
-                    # Group data
-                    df_agrupado = df_historico.groupby(['Año', COL_NIVEL_COMPLEJIDAD]).size().reset_index(name='Cantidad')
+            niveles_complejidad = list(COMPLEXITY_COLORS.keys())
+            df_hist_c = df_hist[df_hist[COL_NIVEL_COMPLEJIDAD].isin(niveles_complejidad)]
 
-                    # Create Plotly Figure
-                    fig_hist = go.Figure()
-                    for nivel in niveles_complejidad_hist:
-                        df_nivel = df_agrupado[df_agrupado[COL_NIVEL_COMPLEJIDAD] == nivel]
-                        if not df_nivel.empty:
-                            fig_hist.add_trace(go.Scatter(
-                                x=df_nivel['Año'],
-                                y=df_nivel['Cantidad'],
-                                mode='lines+markers+text',
-                                name=nivel,
-                                line=dict(color=COMPLEXITY_COLORS.get(nivel, '#3498db'), width=3),
-                                marker=dict(size=10, symbol='circle'),
-                                text=df_nivel['Cantidad'],
-                                textposition='top center',
-                                textfont=dict(size=12, color='black'),
-                                hovertemplate=f'<b>%{{x}}</b><br><b>{nivel}</b><br>Inaugurados: <b>%{{y}}</b><extra></extra>'
-                            ))
+            view_mode = st.radio("Vista", ["Anual", "Acumulado"], horizontal=True)
 
-                    # Configure Layout
-                    unique_years = sorted(df_historico['Año'].unique())
-                    fig_hist.update_layout(
-                        # title is handled by st.subheader
-                        xaxis_title='Año de Inauguración',
-                        yaxis_title='Cantidad de Establecimientos Inaugurados',
-                        hovermode='closest',
-                        xaxis=dict(tickmode='array', tickvals=unique_years, ticktext=unique_years, gridcolor='lightgray', gridwidth=0.5),
-                        yaxis=dict(gridcolor='lightgray', gridwidth=0.5),
-                        plot_bgcolor='white',
-                        height=600,
-                        # width=900, # Use container width
-                        margin=dict(l=50, r=50, t=50, b=50), # Reduced top margin
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
-                    )
+            if not df_hist_c.empty:
+                df_agrupado = df_hist_c.groupby(['Año', COL_NIVEL_COMPLEJIDAD]).size().reset_index(name='Cantidad')
 
-                    # Add buttons (optional, kept from original)
-                    fig_hist.update_layout(
-                        updatemenus=[dict(
-                            type="buttons", direction="left",
-                            buttons=[
-                                dict(args=[{"yaxis.type": "linear"}], label="Lineal", method="relayout"),
-                                dict(args=[{"yaxis.type": "log"}], label="Log", method="relayout")
-                            ],
-                            pad={"r": 10, "t": 10}, showactive=True, x=0.1, xanchor="left", y=1.1, yanchor="top"
-                        )]
-                    )
+                if view_mode == "Acumulado":
+                    df_agrupado = df_agrupado.sort_values('Año')
+                    df_agrupado['Cantidad'] = df_agrupado.groupby(COL_NIVEL_COMPLEJIDAD)['Cantidad'].cumsum()
 
-                    st.plotly_chart(fig_hist, use_container_width=True)
+                fig_hist = go.Figure()
+                for nivel in niveles_complejidad:
+                    df_nivel = df_agrupado[df_agrupado[COL_NIVEL_COMPLEJIDAD] == nivel]
+                    if not df_nivel.empty:
+                        mode = 'lines+markers' if view_mode == "Acumulado" else 'lines+markers+text'
+                        fig_hist.add_trace(go.Scatter(
+                            x=df_nivel['Año'], y=df_nivel['Cantidad'],
+                            mode=mode, name=nivel,
+                            line=dict(color=COMPLEXITY_COLORS.get(nivel, '#3498db'), width=3),
+                            marker=dict(size=8),
+                            text=df_nivel['Cantidad'] if view_mode == "Anual" else None,
+                            textposition='top center',
+                            hovertemplate=f'<b>%{{x}}</b><br>{nivel}: <b>%{{y}}</b><extra></extra>'
+                        ))
 
-                    # Display Table
-                    st.divider()
-                    st.subheader("Tabla de Inauguraciones por Año (desde 2010)")
-                    tabla_historica = df_agrupado.pivot_table(
-                        values='Cantidad', index='Año', columns=COL_NIVEL_COMPLEJIDAD,
-                        aggfunc='sum', fill_value=0
-                    ).astype(int).sort_index()
-                    st.dataframe(tabla_historica, use_container_width=True)
+                y_title = 'Acumulado de Establecimientos' if view_mode == "Acumulado" else 'Establecimientos Inaugurados'
+                unique_years = sorted(df_hist_c['Año'].unique())
+                fig_hist.update_layout(
+                    xaxis_title='Año', yaxis_title=y_title,
+                    hovermode='closest',
+                    xaxis=dict(tickmode='array', tickvals=unique_years, ticktext=unique_years, gridcolor='lightgray'),
+                    yaxis=dict(gridcolor='lightgray'),
+                    plot_bgcolor='white', height=550,
+                    margin=dict(l=50, r=50, t=50, b=50),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+                )
+                st.plotly_chart(fig_hist, use_container_width=True)
 
-                else:
-                    st.warning("No hay datos suficientes para generar el gráfico histórico con los filtros seleccionados.")
-            except Exception as e:
-                st.error(f"Error al procesar los datos históricos: {str(e)}")
-                st.exception(e) # Show traceback for debugging if needed
+                # Table
+                st.divider()
+                st.subheader("Detalle por Año")
+                tabla = df_agrupado.pivot_table(
+                    values='Cantidad', index='Año', columns=COL_NIVEL_COMPLEJIDAD,
+                    aggfunc='sum', fill_value=0
+                ).astype(int).sort_index()
+                st.dataframe(tabla, use_container_width=True)
+            else:
+                st.warning("No hay datos de complejidad válidos para el rango seleccionado.")
+        else:
+            st.warning("No hay registros con fechas de inicio válidas.")
     else:
-        st.warning(f"Faltan columnas '{COL_FECHA_INICIO}' o '{COL_NIVEL_COMPLEJIDAD}' para el análisis histórico.")
+        st.warning(f"Faltan columnas requeridas para el análisis histórico.")
 
 
-# --- Tab 5: Datos Brutos ---
-with tab5:
+# =====================================================
+# TAB 3: RED DE URGENCIAS
+# =====================================================
+with tab3:
+    st.subheader("Red de Servicios de Urgencia")
+    st.info("Análisis de cobertura y tipología de la red de urgencias a nivel nacional.")
+
+    if COL_TIPO_URGENCIA in df_filtered.columns:
+        # Filter to actual urgency services
+        urgency_types = [k for k in URGENCY_COLORS if k != 'Otros']
+        df_urg = df_filtered[df_filtered[COL_TIPO_URGENCIA].isin(urgency_types)].copy()
+
+        # Also include minor types grouped as "Otros"
+        minor_urgency = df_filtered[
+            (~df_filtered[COL_TIPO_URGENCIA].isin(urgency_types)) &
+            (df_filtered[COL_TIPO_URGENCIA] != 'No Aplica') &
+            (df_filtered[COL_TIPO_URGENCIA] != 'SIN DATO') &
+            (df_filtered[COL_TIPO_URGENCIA].notna())
+        ].copy()
+        minor_urgency[COL_TIPO_URGENCIA] = 'Otros'
+        df_urg_all = pd.concat([df_urg, minor_urgency], ignore_index=True)
+
+        total_urg = len(df_urg_all)
+
+        # Mini KPIs
+        k1, k2, k3 = st.columns(3)
+        with k1:
+            st.metric("Total Servicios de Urgencia", f"{total_urg:,}")
+        with k2:
+            total_comunas = df[COL_COMUNA].nunique()
+            comunas_con = df_filtered[df_filtered[COL_URGENCIA] == 'SI'][COL_COMUNA].nunique()
+            comunas_sin = total_comunas - comunas_con
+            st.metric("Comunas Sin Cobertura", f"{comunas_sin}", delta=f"de {total_comunas} totales", delta_color="inverse")
+        with k3:
+            ueh = df_urg_all[df_urg_all[COL_TIPO_URGENCIA] == 'Urgencia Hospitalaria (UEH)'].shape[0]
+            sapu = df_urg_all[df_urg_all[COL_TIPO_URGENCIA] == 'Urgencia Ambulatoria (SAPU)'].shape[0]
+            ratio = f"{ueh/sapu:.2f}" if sapu > 0 else "N/A"
+            st.metric("Ratio Hospitalaria / SAPU", ratio, help="Relación entre urgencias hospitalarias (UEH) y atención primaria (SAPU)")
+
+        st.divider()
+
+        # --- Urgency types by region (stacked bar) ---
+        st.subheader("Tipos de Urgencia por Región")
+        if COL_REGION in df_urg_all.columns and not df_urg_all.empty:
+            region_urg = pd.crosstab(df_urg_all[COL_REGION], df_urg_all[COL_TIPO_URGENCIA]).reset_index()
+
+            for col in URGENCY_COLORS.keys():
+                if col not in region_urg.columns:
+                    region_urg[col] = 0
+
+            region_urg['_total'] = region_urg.select_dtypes(include='number').sum(axis=1)
+            region_urg = region_urg.sort_values('_total', ascending=True).drop(columns='_total')
+
+            fig_urg_region = go.Figure()
+            for urg_type, color in URGENCY_COLORS.items():
+                if urg_type in region_urg.columns:
+                    fig_urg_region.add_trace(go.Bar(
+                        name=urg_type.replace('Urgencia ', '').replace('Ambulatoria ', ''),
+                        y=region_urg[COL_REGION],
+                        x=region_urg[urg_type],
+                        orientation='h',
+                        marker_color=color,
+                        hovertemplate=f'<b>%{{y}}</b><br>{urg_type}: <b>%{{x}}</b><extra></extra>'
+                    ))
+
+            fig_urg_region.update_layout(
+                barmode='stack', height=600,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title='Tipo de Urgencia'),
+                margin=dict(l=50, r=50, t=50, b=50),
+                xaxis_title='Cantidad', yaxis_title='Región',
+            )
+            st.plotly_chart(fig_urg_region, use_container_width=True)
+
+        st.divider()
+
+        # --- Urgency type donut ---
+        col_u1, col_u2 = st.columns([1, 1])
+        with col_u1:
+            st.subheader("Distribución por Tipo")
+            urg_counts = df_urg_all[COL_TIPO_URGENCIA].value_counts().reset_index()
+            urg_counts.columns = ['Tipo', 'Cantidad']
+            colors_list = [URGENCY_COLORS.get(t, '#95a5a6') for t in urg_counts['Tipo']]
+
+            fig_urg_donut = go.Figure(data=[go.Pie(
+                labels=urg_counts['Tipo'].str.replace('Urgencia ', '').str.replace('Ambulatoria ', ''),
+                values=urg_counts['Cantidad'],
+                hole=0.4,
+                marker=dict(colors=colors_list, line=dict(color='white', width=2)),
+                textinfo='label+percent', textposition='outside', textfont=dict(size=11),
+                hovertemplate='<b>%{label}</b><br>Cantidad: <b>%{value}</b><br>%{percent}<extra></extra>',
+            )])
+            fig_urg_donut.update_layout(
+                showlegend=False, height=400,
+                annotations=[dict(text=f"{total_urg}", x=0.5, y=0.5, font=dict(size=18, weight='bold'), showarrow=False)],
+                margin=dict(l=20, r=20, t=20, b=20),
+            )
+            st.plotly_chart(fig_urg_donut, use_container_width=True)
+
+        # --- Coverage gap table ---
+        with col_u2:
+            st.subheader("Comunas Sin Urgencia")
+            if COL_COMUNA in df_filtered.columns and COL_REGION in df_filtered.columns:
+                todas_comunas = df[[COL_COMUNA, COL_REGION]].drop_duplicates()
+                comunas_con_urg = df_filtered[df_filtered[COL_URGENCIA] == 'SI'][COL_COMUNA].unique()
+                comunas_sin_urg = todas_comunas[~todas_comunas[COL_COMUNA].isin(comunas_con_urg)]
+                comunas_sin_urg = comunas_sin_urg.sort_values([COL_REGION, COL_COMUNA])
+
+                if not comunas_sin_urg.empty:
+                    st.caption(f"{len(comunas_sin_urg)} comunas sin servicio de urgencia")
+                    st.dataframe(
+                        comunas_sin_urg.rename(columns={COL_REGION: 'Región', COL_COMUNA: 'Comuna'}),
+                        hide_index=True, use_container_width=True, height=340,
+                    )
+                else:
+                    st.success("Todas las comunas cuentan con al menos un servicio de urgencia.")
+    else:
+        st.warning("No hay datos de tipo de urgencia disponibles.")
+
+
+# =====================================================
+# TAB 4: EXPLORADOR DE DATOS
+# =====================================================
+with tab4:
+    st.subheader("Explorador de Datos")
+
+    # Top 20 types in expander
+    with st.expander("Top 20 Tipos de Establecimiento", expanded=False):
+        if COL_TIPO_ESTAB in df_filtered.columns:
+            counts = df_filtered[COL_TIPO_ESTAB].value_counts().reset_index()
+            counts.columns = ['Tipo de Establecimiento', 'Cantidad']
+            total_count = len(df_filtered)
+            counts['Porcentaje'] = (counts['Cantidad'] / total_count * 100)
+            data_top = counts.head(20)
+
+            fig_types = go.Figure(go.Bar(
+                x=data_top['Cantidad'], y=data_top['Tipo de Establecimiento'],
+                orientation='h',
+                marker_color=px.colors.sequential.Blues[-2],
+                text=[f'{n} ({p:.1f}%)' for n, p in zip(data_top['Cantidad'], data_top['Porcentaje'])],
+                textposition='outside',
+                hovertemplate='<b>%{y}</b><br>Cantidad: <b>%{x}</b><extra></extra>'
+            ))
+            fig_types.update_layout(
+                height=max(500, len(data_top) * 35),
+                margin=dict(l=50, r=150, t=30, b=50),
+                yaxis={'categoryorder': 'total ascending'}, showlegend=False,
+                xaxis_title='Cantidad', yaxis_title='Tipo',
+            )
+            st.plotly_chart(fig_types, use_container_width=True)
+
+    st.divider()
+
+    # Data table
     st.subheader("Muestra de Datos Filtrados")
-    st.info(f"""
-        A continuación se muestra una muestra de los **{len(df_filtered)}** registros filtrados.
-        Puede descargar el conjunto completo usando el botón.
-    """)
+    st.caption(f"Mostrando **{len(df_filtered):,}** registros filtrados.")
 
     if not df_filtered.empty:
-        with st.spinner('Preparando visualización de datos...'):
-            cols_to_show = [
-                COL_NOMBRE, COL_REGION, COL_COMUNA, COL_TIPO_ESTAB,
-                COL_SISTEMA, COL_NIVEL_ATENCION, COL_URGENCIA
-            ]
-            # Filter columns that actually exist in the filtered data
-            cols_exist = [col for col in cols_to_show if col in df_filtered.columns]
+        cols_to_show = [
+            COL_NOMBRE, COL_REGION, COL_COMUNA, COL_TIPO_ESTAB,
+            COL_SISTEMA, COL_DEPENDENCIA, COL_TIPO_ATENCION,
+            COL_NIVEL_ATENCION, COL_TIPO_URGENCIA, COL_URGENCIA
+        ]
+        cols_exist = [col for col in cols_to_show if col in df_filtered.columns]
 
-            if cols_exist:
-                st.dataframe(
-                    df_filtered[cols_exist].head(10), # Display only existing columns
-                    hide_index=True, # Often preferred for display tables
-                    use_container_width=True
-                )
-            else:
-                st.dataframe(df_filtered.head(10), hide_index=True, use_container_width=True) # Fallback
+        if cols_exist:
+            st.dataframe(df_filtered[cols_exist], hide_index=True, use_container_width=True)
+        else:
+            st.dataframe(df_filtered, hide_index=True, use_container_width=True)
 
-        # Download Button
         csv_data = df_filtered.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
         st.download_button(
             label="Descargar datos filtrados (CSV)",
@@ -632,8 +699,5 @@ st.markdown("---")
 st.markdown("""
 **Análisis de Establecimientos de Salud en Chile** | Datos del Ministerio de Salud
 
-Desarrollado por: Rodrigo Muñoz Soto
-📧 munozsoto.rodrigo@gmail.com | 🔗 [GitHub: rodrigooig](https://github.com/rodrigooig) | 💼 [LinkedIn](https://www.linkedin.com/in/munozsoto-rodrigo/)
+Desarrollado por: Rodrigo Muñoz Soto | [GitHub: rodrigooig](https://github.com/rodrigooig) | [LinkedIn](https://www.linkedin.com/in/munozsoto-rodrigo/)
 """)
-# Version removed as it might become outdated, keep it in comments or config if needed.
-# The CSS already hides the default Streamlit footer 
