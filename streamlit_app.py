@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import pydeck as pdk
+import folium
+from folium.plugins import MarkerCluster
+from streamlit_folium import st_folium
 
 # --- Constants ---
 DATA_PATH = 'data/establecimientos_cleaned.csv'
@@ -122,91 +124,76 @@ def visualizar_mapa(map_data):
     else:
         map_data_valid = map_data_valid.assign(_sistema='Otros')
 
-    # Assign RGB colors for pydeck
-    r_map = {'Público': 39, 'Privado': 192, 'Otros': 127}
-    g_map = {'Público': 174, 'Privado': 57, 'Otros': 140}
-    b_map = {'Público': 96, 'Privado': 43, 'Otros': 141}
-    map_data_valid = map_data_valid.assign(
-        _r=map_data_valid['_sistema'].map(r_map),
-        _g=map_data_valid['_sistema'].map(g_map),
-        _b=map_data_valid['_sistema'].map(b_map),
+    # Pre-build tooltip strings (vectorized)
+    tooltip_parts = []
+    if COL_NOMBRE in map_data_valid.columns:
+        tooltip_parts.append('<b>' + map_data_valid[COL_NOMBRE].astype(str) + '</b>')
+    if COL_TIPO_ESTAB in map_data_valid.columns:
+        tooltip_parts.append(map_data_valid[COL_TIPO_ESTAB].astype(str))
+    if COL_COMUNA in map_data_valid.columns and COL_REGION in map_data_valid.columns:
+        tooltip_parts.append(map_data_valid[COL_COMUNA].astype(str) + ', ' + map_data_valid[COL_REGION].astype(str))
+    tooltip_series = tooltip_parts[0] if tooltip_parts else pd.Series('', index=map_data_valid.index)
+    for part in tooltip_parts[1:]:
+        tooltip_series = tooltip_series + '<br>' + part
+
+    # Pre-compute lists for fast iteration
+    lats = map_data_valid[COL_LAT].tolist()
+    lons = map_data_valid[COL_LON].tolist()
+    colors = map_data_valid['_sistema'].map(SYSTEM_COLORS).tolist()
+    tooltips = tooltip_series.tolist()
+
+    # Create Folium map
+    m = folium.Map(
+        location=[-35.5, -71.5],
+        zoom_start=5,
+        tiles='OpenStreetMap',
+        control_scale=True,
     )
 
-    # Select only columns needed for the map (performance)
-    map_cols = [COL_LAT, COL_LON, COL_NOMBRE, COL_TIPO_ESTAB, COL_SISTEMA,
-                COL_COMUNA, COL_REGION, COL_URGENCIA, '_sistema', '_r', '_g', '_b']
-    map_cols = [c for c in map_cols if c in map_data_valid.columns]
-    map_df = map_data_valid[map_cols].copy()
-
-    layer = pdk.Layer(
-        "ScatterplotLayer",
-        data=map_df,
-        get_position=f'[{COL_LON}, {COL_LAT}]',
-        get_fill_color='[_r, _g, _b, 190]',
-        get_line_color=[255, 255, 255, 220],
-        get_radius=500,
-        radius_min_pixels=4,
-        radius_max_pixels=15,
-        pickable=True,
-        stroked=True,
-        line_width_min_pixels=1,
-        auto_highlight=True,
-        highlight_color=[255, 200, 0, 140],
-    )
-
-    view_state = pdk.ViewState(
-        latitude=-35.5,
-        longitude=-71.5,
-        zoom=4,
-        pitch=0,
-    )
-
-    tooltip = {
-        "html": (
-            f"<b style='font-size:13px'>{{{COL_NOMBRE}}}</b><br/>"
-            f"<span style='color:#666'>{{{COL_TIPO_ESTAB}}}</span><br/>"
-            f"<span style='color:#666'>{{{COL_SISTEMA}}}</span><br/>"
-            f"<span style='color:#888'>{{{COL_COMUNA}}}, {{{COL_REGION}}}</span>"
-        ),
-        "style": {
-            "backgroundColor": "white",
-            "color": "#333",
-            "fontSize": "12px",
-            "fontFamily": "Roboto, sans-serif",
-            "padding": "10px 14px",
-            "borderRadius": "8px",
-            "boxShadow": "0 2px 12px rgba(0,0,0,0.15)",
-            "border": "1px solid #e0e0e0",
-            "lineHeight": "1.5",
+    # MarkerCluster with Leaflet.markercluster styling (green→yellow→orange→red)
+    cluster = MarkerCluster(
+        options={
+            'maxClusterRadius': 50,
+            'spiderfyOnMaxZoom': True,
+            'showCoverageOnHover': True,
+            'zoomToBoundsOnClick': True,
         }
-    }
+    ).add_to(m)
 
-    # Inline legend
-    st.markdown(
-        '<div style="display:flex;gap:24px;margin-bottom:6px;font-size:14px;">'
-        '<span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;'
-        'background:#27ae60;border:2px solid white;box-shadow:0 0 3px rgba(0,0,0,0.3);'
-        'vertical-align:middle;margin-right:4px;"></span> Público</span>'
-        '<span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;'
-        'background:#c0392b;border:2px solid white;box-shadow:0 0 3px rgba(0,0,0,0.3);'
-        'vertical-align:middle;margin-right:4px;"></span> Privado</span>'
-        '<span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;'
-        'background:#7f8c8d;border:2px solid white;box-shadow:0 0 3px rgba(0,0,0,0.3);'
-        'vertical-align:middle;margin-right:4px;"></span> Otros</span>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+    # Add CircleMarkers (much lighter than Marker icons)
+    for lat, lon, color, tip in zip(lats, lons, colors, tooltips):
+        folium.CircleMarker(
+            location=[lat, lon],
+            radius=7,
+            color='white',
+            weight=1.5,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.85,
+            tooltip=tip,
+        ).add_to(cluster)
 
-    st.pydeck_chart(
-        pdk.Deck(
-            layers=[layer],
-            initial_view_state=view_state,
-            map_style="light",
-            tooltip=tooltip,
-        ),
-        use_container_width=True,
-        height=700,
-    )
+    # Floating legend on the map
+    legend_html = '''
+    <div style="position:fixed;bottom:30px;right:30px;z-index:1000;
+        background:white;padding:10px 15px;border-radius:8px;
+        box-shadow:0 2px 10px rgba(0,0,0,0.15);font-size:13px;
+        font-family:Roboto,sans-serif;line-height:1.8;">
+        <b>Sistema de Salud</b><br>
+        <span style="display:inline-block;width:11px;height:11px;border-radius:50%;
+            background:#27ae60;border:1.5px solid white;box-shadow:0 0 2px rgba(0,0,0,0.3);
+            vertical-align:middle;margin-right:5px;"></span>Público<br>
+        <span style="display:inline-block;width:11px;height:11px;border-radius:50%;
+            background:#c0392b;border:1.5px solid white;box-shadow:0 0 2px rgba(0,0,0,0.3);
+            vertical-align:middle;margin-right:5px;"></span>Privado<br>
+        <span style="display:inline-block;width:11px;height:11px;border-radius:50%;
+            background:#7f8c8d;border:1.5px solid white;box-shadow:0 0 2px rgba(0,0,0,0.3);
+            vertical-align:middle;margin-right:5px;"></span>Otros
+    </div>
+    '''
+    m.get_root().html.add_child(folium.Element(legend_html))
+
+    st_folium(m, use_container_width=True, height=700, returned_objects=[])
 
 
 # --- Main App Logic ---
@@ -296,7 +283,7 @@ if not df_filtered.empty:
             st.metric("Atención Ambulatoria", "N/A")
     with col5:
         if COL_COMUNA in df_filtered.columns and COL_URGENCIA in df_filtered.columns:
-            total_comunas = df[COL_COMUNA].nunique()
+            total_comunas = df_filtered[COL_COMUNA].nunique()
             comunas_urg = df_filtered[df_filtered[COL_URGENCIA] == 'SI'][COL_COMUNA].nunique()
             sin_cobertura = total_comunas - comunas_urg
             st.metric("Cobertura Comunal de Urgencia", f"{comunas_urg} / {total_comunas}", delta=f"-{sin_cobertura} sin cobertura", delta_color="inverse")
@@ -555,7 +542,7 @@ with tab3:
         with k1:
             st.metric("Total Servicios de Urgencia", f"{total_urg:,}")
         with k2:
-            total_comunas = df[COL_COMUNA].nunique()
+            total_comunas = df_filtered[COL_COMUNA].nunique()
             comunas_con = df_filtered[df_filtered[COL_URGENCIA] == 'SI'][COL_COMUNA].nunique()
             comunas_sin = total_comunas - comunas_con
             st.metric("Comunas Sin Cobertura", f"{comunas_sin}", delta=f"de {total_comunas} totales", delta_color="inverse")
@@ -628,7 +615,7 @@ with tab3:
         with col_u2:
             st.subheader("Comunas Sin Urgencia")
             if COL_COMUNA in df_filtered.columns and COL_REGION in df_filtered.columns:
-                todas_comunas = df[[COL_COMUNA, COL_REGION]].drop_duplicates()
+                todas_comunas = df_filtered[[COL_COMUNA, COL_REGION]].drop_duplicates()
                 comunas_con_urg = df_filtered[df_filtered[COL_URGENCIA] == 'SI'][COL_COMUNA].unique()
                 comunas_sin_urg = todas_comunas[~todas_comunas[COL_COMUNA].isin(comunas_con_urg)]
                 comunas_sin_urg = comunas_sin_urg.sort_values([COL_REGION, COL_COMUNA])
