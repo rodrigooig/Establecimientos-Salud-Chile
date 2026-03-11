@@ -18,7 +18,10 @@ COLUMNS_TO_KEEP = [
     "Latitud",
     "Longitud",
     "EstablecimientoGlosa",
-    "ComunaGlosa"
+    "ComunaGlosa",
+    "DependenciaAdministrativa",
+    "TipoAtencionEstabGlosa",
+    "TipoUrgencia"
 ]
 
 def normalize_text(text, capitalize_minor_words=False):
