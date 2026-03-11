@@ -121,7 +121,8 @@ def visualizar_mapa(map_data):
     else:
         map_data_valid = map_data_valid.assign(_sistema='Otros')
 
-    # Build hover text
+    # Build hover text (Series concatenation, not str.join)
+    hover_text = None
     hover_parts = []
     if COL_NOMBRE in map_data_valid.columns:
         hover_parts.append('<b>' + map_data_valid[COL_NOMBRE].astype(str) + '</b>')
@@ -129,7 +130,10 @@ def visualizar_mapa(map_data):
         hover_parts.append(map_data_valid[COL_TIPO_ESTAB].astype(str))
     if COL_COMUNA in map_data_valid.columns and COL_REGION in map_data_valid.columns:
         hover_parts.append(map_data_valid[COL_COMUNA].astype(str) + ', ' + map_data_valid[COL_REGION].astype(str))
-    hover_text = '<br>'.join(hover_parts) if hover_parts else None
+    if hover_parts:
+        hover_text = hover_parts[0]
+        for part in hover_parts[1:]:
+            hover_text = hover_text + '<br>' + part
 
     fig_map = go.Figure()
 
