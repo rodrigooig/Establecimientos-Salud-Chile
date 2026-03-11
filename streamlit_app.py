@@ -21,7 +21,7 @@ COL_DEPENDENCIA = "DependenciaAdministrativa"
 COL_TIPO_ATENCION = "TipoAtencionEstabGlosa"
 COL_TIPO_URGENCIA = "TipoUrgencia"
 
-SYSTEM_COLORS = {'Público': '#2ecc71', 'Privado': '#e74c3c', 'Otros': '#95a5a6'}
+SYSTEM_COLORS = {'Público': '#27ae60', 'Privado': '#c0392b', 'Otros': '#7f8c8d'}
 COMPLEXITY_COLORS = {
     'Alta Complejidad': '#e74c3c',
     'Mediana Complejidad': '#f39c12',
@@ -127,9 +127,13 @@ def visualizar_mapa(map_data):
     if COL_NOMBRE in map_data_valid.columns:
         hover_parts.append('<b>' + map_data_valid[COL_NOMBRE].astype(str) + '</b>')
     if COL_TIPO_ESTAB in map_data_valid.columns:
-        hover_parts.append(map_data_valid[COL_TIPO_ESTAB].astype(str))
+        hover_parts.append('📋 ' + map_data_valid[COL_TIPO_ESTAB].astype(str))
+    if COL_SISTEMA in map_data_valid.columns:
+        hover_parts.append('🏥 ' + map_data_valid[COL_SISTEMA].astype(str))
     if COL_COMUNA in map_data_valid.columns and COL_REGION in map_data_valid.columns:
-        hover_parts.append(map_data_valid[COL_COMUNA].astype(str) + ', ' + map_data_valid[COL_REGION].astype(str))
+        hover_parts.append('📍 ' + map_data_valid[COL_COMUNA].astype(str) + ', ' + map_data_valid[COL_REGION].astype(str))
+    if COL_URGENCIA in map_data_valid.columns:
+        hover_parts.append('🚑 Urgencia: ' + map_data_valid[COL_URGENCIA].astype(str))
     if hover_parts:
         hover_text = hover_parts[0]
         for part in hover_parts[1:]:
@@ -145,25 +149,36 @@ def visualizar_mapa(map_data):
             lat=df_sys[COL_LAT],
             lon=df_sys[COL_LON],
             mode='markers',
-            marker=dict(size=7, color=color, opacity=0.7),
+            marker=dict(size=10, color=color, opacity=0.85),
             name=sistema,
             hovertext=hover_text[df_sys.index] if hover_text is not None else None,
             hoverinfo='text',
-            cluster=dict(enabled=True, maxzoom=12, size=40, step=3,
-                         color=color, opacity=0.8),
+            cluster=dict(enabled=True, maxzoom=14, size=28, step=5,
+                         color=color, opacity=0.7),
         ))
 
     fig_map.update_layout(
-        map=dict(style="open-street-map", center=dict(lat=-33.45, lon=-70.65), zoom=3.5),
-        height=650,
+        map=dict(
+            style="carto-positron",
+            center=dict(lat=-35.5, lon=-71.5),
+            zoom=4,
+        ),
+        height=700,
         margin=dict(l=0, r=0, t=0, b=0),
         legend=dict(
-            title="Sistema de Salud",
+            title=dict(text="Sistema de Salud", font=dict(size=13)),
             orientation="h", yanchor="top", y=0.99, xanchor="left", x=0.01,
-            bgcolor="rgba(255,255,255,0.8)",
+            bgcolor="rgba(255,255,255,0.92)",
+            font=dict(size=12),
+            itemsizing='constant',
+        ),
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=12,
+            font_family="Roboto, sans-serif",
         ),
     )
-    st.plotly_chart(fig_map, use_container_width=True)
+    st.plotly_chart(fig_map, use_container_width=True, config={'scrollZoom': True})
 
 
 # --- Main App Logic ---
