@@ -283,7 +283,7 @@ if not df_filtered.empty:
             st.metric("Atención Ambulatoria", "N/A")
     with col5:
         if COL_COMUNA in df_filtered.columns and COL_URGENCIA in df_filtered.columns:
-            total_comunas = df[COL_COMUNA].nunique()
+            total_comunas = df_filtered[COL_COMUNA].nunique()
             comunas_urg = df_filtered[df_filtered[COL_URGENCIA] == 'SI'][COL_COMUNA].nunique()
             sin_cobertura = total_comunas - comunas_urg
             st.metric("Cobertura Comunal de Urgencia", f"{comunas_urg} / {total_comunas}", delta=f"-{sin_cobertura} sin cobertura", delta_color="inverse")
@@ -542,7 +542,7 @@ with tab3:
         with k1:
             st.metric("Total Servicios de Urgencia", f"{total_urg:,}")
         with k2:
-            total_comunas = df[COL_COMUNA].nunique()
+            total_comunas = df_filtered[COL_COMUNA].nunique()
             comunas_con = df_filtered[df_filtered[COL_URGENCIA] == 'SI'][COL_COMUNA].nunique()
             comunas_sin = total_comunas - comunas_con
             st.metric("Comunas Sin Cobertura", f"{comunas_sin}", delta=f"de {total_comunas} totales", delta_color="inverse")
@@ -615,7 +615,7 @@ with tab3:
         with col_u2:
             st.subheader("Comunas Sin Urgencia")
             if COL_COMUNA in df_filtered.columns and COL_REGION in df_filtered.columns:
-                todas_comunas = df[[COL_COMUNA, COL_REGION]].drop_duplicates()
+                todas_comunas = df_filtered[[COL_COMUNA, COL_REGION]].drop_duplicates()
                 comunas_con_urg = df_filtered[df_filtered[COL_URGENCIA] == 'SI'][COL_COMUNA].unique()
                 comunas_sin_urg = todas_comunas[~todas_comunas[COL_COMUNA].isin(comunas_con_urg)]
                 comunas_sin_urg = comunas_sin_urg.sort_values([COL_REGION, COL_COMUNA])
