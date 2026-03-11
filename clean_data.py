@@ -52,25 +52,31 @@ def normalize_text(text, capitalize_minor_words=False):
     normalized_words = []
     minor_words = ['de', 'del', 'la', 'las', 'los', 'y', 'en']
 
+    def smart_capitalize(w):
+        """Capitaliza respetando prefijos no-alfabéticos como paréntesis."""
+        match = re.match(r'^([^a-zA-ZáéíóúñÁÉÍÓÚÑ]*)(.*)', w)
+        if match and match.group(2):
+            prefix, rest = match.group(1), match.group(2)
+            return prefix + rest.capitalize()
+        return w.capitalize()
+
     for i, word in enumerate(words):
         if not word:
             continue
 
-        is_acronym = len(word) >= 2 and word.isupper()
-        is_minor_word = word.lower() in minor_words
+        # Strip non-alpha prefix for checks
+        alpha_part = re.sub(r'^[^a-zA-ZáéíóúñÁÉÍÓÚÑ]+', '', word)
+        is_acronym = len(alpha_part) >= 2 and alpha_part.isupper()
+        is_minor_word = alpha_part.lower() in minor_words
 
         if i == 0:
-            # Capitalize the first word (unless it's an acronym)
-            normalized_words.append(word if is_acronym else word.capitalize())
+            normalized_words.append(word if is_acronym else smart_capitalize(word))
         elif is_acronym:
-            # Keep acronyms uppercase
             normalized_words.append(word)
         elif is_minor_word and not capitalize_minor_words:
-            # Keep minor words lowercase (default behavior)
             normalized_words.append(word.lower())
         else:
-            # Capitalize other words (or minor words if capitalize_minor_words is True)
-            normalized_words.append(word.capitalize())
+            normalized_words.append(smart_capitalize(word))
 
     text = ' '.join(normalized_words)
 
@@ -119,7 +125,7 @@ def normalize_columns(df):
     return df
 
 def main():
-    input_file = 'data/establecimientos.csv'
+    input_file = 'data/establecimientos_20260310.csv'
     output_file = 'data/establecimientos_cleaned.csv'
 
     if not os.path.exists(input_file):
@@ -152,6 +158,12 @@ def main():
         if 'RegionGlosa' in df.columns:
             print("\nEjemplos de regiones ANTES de normalización:")
             print(df['RegionGlosa'].drop_duplicates().head(10).tolist())
+
+        # Standardize TieneServicioUrgencia values
+        if 'TieneServicioUrgencia' in df.columns:
+            urgencia_map = {'SI': 'SI', 'Si': 'SI', 'si': 'SI', 'NO': 'NO', 'No': 'NO', 'no': 'NO'}
+            df['TieneServicioUrgencia'] = df['TieneServicioUrgencia'].map(urgencia_map).fillna(df['TieneServicioUrgencia'])
+            print(f"\nTieneServicioUrgencia estandarizado: {df['TieneServicioUrgencia'].value_counts().to_dict()}")
 
         print("\nAplicando normalización a los datos...")
         df = normalize_columns(df)
