@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import pydeck as pdk
 
 # --- Constants ---
 DATA_PATH = 'data/establecimientos_cleaned.csv'
@@ -121,64 +122,91 @@ def visualizar_mapa(map_data):
     else:
         map_data_valid = map_data_valid.assign(_sistema='Otros')
 
-    # Build hover text (Series concatenation, not str.join)
-    hover_text = None
-    hover_parts = []
-    if COL_NOMBRE in map_data_valid.columns:
-        hover_parts.append('<b>' + map_data_valid[COL_NOMBRE].astype(str) + '</b>')
-    if COL_TIPO_ESTAB in map_data_valid.columns:
-        hover_parts.append('📋 ' + map_data_valid[COL_TIPO_ESTAB].astype(str))
-    if COL_SISTEMA in map_data_valid.columns:
-        hover_parts.append('🏥 ' + map_data_valid[COL_SISTEMA].astype(str))
-    if COL_COMUNA in map_data_valid.columns and COL_REGION in map_data_valid.columns:
-        hover_parts.append('📍 ' + map_data_valid[COL_COMUNA].astype(str) + ', ' + map_data_valid[COL_REGION].astype(str))
-    if COL_URGENCIA in map_data_valid.columns:
-        hover_parts.append('🚑 Urgencia: ' + map_data_valid[COL_URGENCIA].astype(str))
-    if hover_parts:
-        hover_text = hover_parts[0]
-        for part in hover_parts[1:]:
-            hover_text = hover_text + '<br>' + part
-
-    fig_map = go.Figure()
-
-    for sistema, color in SYSTEM_COLORS.items():
-        df_sys = map_data_valid[map_data_valid['_sistema'] == sistema]
-        if df_sys.empty:
-            continue
-        fig_map.add_trace(go.Scattermap(
-            lat=df_sys[COL_LAT],
-            lon=df_sys[COL_LON],
-            mode='markers',
-            marker=dict(size=10, color=color, opacity=0.85),
-            name=sistema,
-            hovertext=hover_text[df_sys.index] if hover_text is not None else None,
-            hoverinfo='text',
-            cluster=dict(enabled=True, maxzoom=14, size=28, step=5,
-                         color=color, opacity=0.7),
-        ))
-
-    fig_map.update_layout(
-        map=dict(
-            style="carto-positron",
-            center=dict(lat=-35.5, lon=-71.5),
-            zoom=4,
-        ),
-        height=700,
-        margin=dict(l=0, r=0, t=0, b=0),
-        legend=dict(
-            title=dict(text="Sistema de Salud", font=dict(size=13)),
-            orientation="h", yanchor="top", y=0.99, xanchor="left", x=0.01,
-            bgcolor="rgba(255,255,255,0.92)",
-            font=dict(size=12),
-            itemsizing='constant',
-        ),
-        hoverlabel=dict(
-            bgcolor="white",
-            font_size=12,
-            font_family="Roboto, sans-serif",
-        ),
+    # Assign RGB colors for pydeck
+    r_map = {'Público': 39, 'Privado': 192, 'Otros': 127}
+    g_map = {'Público': 174, 'Privado': 57, 'Otros': 140}
+    b_map = {'Público': 96, 'Privado': 43, 'Otros': 141}
+    map_data_valid = map_data_valid.assign(
+        _r=map_data_valid['_sistema'].map(r_map),
+        _g=map_data_valid['_sistema'].map(g_map),
+        _b=map_data_valid['_sistema'].map(b_map),
     )
-    st.plotly_chart(fig_map, use_container_width=True, config={'scrollZoom': True})
+
+    # Select only columns needed for the map (performance)
+    map_cols = [COL_LAT, COL_LON, COL_NOMBRE, COL_TIPO_ESTAB, COL_SISTEMA,
+                COL_COMUNA, COL_REGION, COL_URGENCIA, '_sistema', '_r', '_g', '_b']
+    map_cols = [c for c in map_cols if c in map_data_valid.columns]
+    map_df = map_data_valid[map_cols].copy()
+
+    layer = pdk.Layer(
+        "ScatterplotLayer",
+        data=map_df,
+        get_position=f'[{COL_LON}, {COL_LAT}]',
+        get_fill_color='[_r, _g, _b, 190]',
+        get_line_color=[255, 255, 255, 220],
+        get_radius=500,
+        radius_min_pixels=4,
+        radius_max_pixels=15,
+        pickable=True,
+        stroked=True,
+        line_width_min_pixels=1,
+        auto_highlight=True,
+        highlight_color=[255, 200, 0, 140],
+    )
+
+    view_state = pdk.ViewState(
+        latitude=-35.5,
+        longitude=-71.5,
+        zoom=4,
+        pitch=0,
+    )
+
+    tooltip = {
+        "html": (
+            f"<b style='font-size:13px'>{{{COL_NOMBRE}}}</b><br/>"
+            f"<span style='color:#666'>{{{COL_TIPO_ESTAB}}}</span><br/>"
+            f"<span style='color:#666'>{{{COL_SISTEMA}}}</span><br/>"
+            f"<span style='color:#888'>{{{COL_COMUNA}}}, {{{COL_REGION}}}</span>"
+        ),
+        "style": {
+            "backgroundColor": "white",
+            "color": "#333",
+            "fontSize": "12px",
+            "fontFamily": "Roboto, sans-serif",
+            "padding": "10px 14px",
+            "borderRadius": "8px",
+            "boxShadow": "0 2px 12px rgba(0,0,0,0.15)",
+            "border": "1px solid #e0e0e0",
+            "lineHeight": "1.5",
+        }
+    }
+
+    # Inline legend
+    st.markdown(
+        '<div style="display:flex;gap:24px;margin-bottom:6px;font-size:14px;">'
+        '<span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;'
+        'background:#27ae60;border:2px solid white;box-shadow:0 0 3px rgba(0,0,0,0.3);'
+        'vertical-align:middle;margin-right:4px;"></span> Público</span>'
+        '<span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;'
+        'background:#c0392b;border:2px solid white;box-shadow:0 0 3px rgba(0,0,0,0.3);'
+        'vertical-align:middle;margin-right:4px;"></span> Privado</span>'
+        '<span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;'
+        'background:#7f8c8d;border:2px solid white;box-shadow:0 0 3px rgba(0,0,0,0.3);'
+        'vertical-align:middle;margin-right:4px;"></span> Otros</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.pydeck_chart(
+        pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            map_style="light",
+            tooltip=tooltip,
+        ),
+        use_container_width=True,
+        height=700,
+    )
 
 
 # --- Main App Logic ---
