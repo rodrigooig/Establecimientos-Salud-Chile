@@ -1,11 +1,8 @@
 import streamlit as st
 import pandas as pd
 import matplotlib
-import folium
 import plotly.express as px
 import plotly.graph_objects as go
-from streamlit_folium import folium_static
-from folium.plugins import MarkerCluster
 
 # --- Constants ---
 DATA_PATH = 'data/establecimientos_cleaned.csv'
@@ -104,53 +101,14 @@ def apply_filters(df, filters):
     return df_filtered
 
 
+def classify_sistema(val):
+    return val if val in ('Público', 'Privado') else 'Otros'
+
+
 def simplify_dependency(val):
     if val in ('Municipal', 'Privado', 'Servicio de Salud'):
         return val
     return 'Otro'
-
-
-# --- Map Helpers ---
-@st.cache_data
-def procesar_datos_mapa(map_data):
-    map_data = map_data.copy()
-    map_data['location'] = list(zip(map_data[COL_LAT], map_data[COL_LON]))
-    location_counts = pd.DataFrame(map_data['location'].value_counts()).reset_index()
-    location_counts.columns = ['coords', 'count']
-    return location_counts, map_data
-
-
-def obtener_color_sistema(sistema_principal):
-    return SYSTEM_COLORS.get(sistema_principal, 'gray')
-
-
-def crear_texto_popup(establecimientos, count):
-    popup_text = f"Cantidad: {count} establecimiento(s)"
-
-    def formatear_lista(items, max_items=5):
-        items = list(items)
-        if len(items) > max_items:
-            return "<br>".join(items[:max_items]) + f"<br>... y {len(items) - max_items} más"
-        return "<br>".join(items)
-
-    if COL_NOMBRE in establecimientos.columns:
-        nombres = formatear_lista(establecimientos[COL_NOMBRE].unique())
-        popup_text += f"<br><br><b>Establecimientos: </b><br>{nombres}"
-
-    if COL_TIPO_ESTAB in establecimientos.columns:
-        tipos = formatear_lista(establecimientos[COL_TIPO_ESTAB].unique())
-        if tipos:
-            popup_text += f"<br><br><b>Tipo(s): </b><br>{tipos}"
-
-    color = 'gray'
-    if COL_SISTEMA in establecimientos.columns:
-        sistemas = establecimientos[COL_SISTEMA].value_counts()
-        if not sistemas.empty:
-            sistema_principal = sistemas.index[0]
-            popup_text += f"<br><br><b>Sistema principal: </b><br>{sistema_principal}"
-            color = obtener_color_sistema(sistema_principal)
-
-    return popup_text, color
 
 
 def visualizar_mapa(map_data):
@@ -158,41 +116,47 @@ def visualizar_mapa(map_data):
         st.warning(f"Faltan columnas '{COL_LAT}' o '{COL_LON}' para el mapa.")
         return
 
-    map_data_valid = map_data.dropna(subset=[COL_LAT, COL_LON]).copy()
+    map_data_valid = map_data.dropna(subset=[COL_LAT, COL_LON])
     if map_data_valid.empty:
         st.warning("No hay datos con coordenadas geográficas válidas.")
         return
 
-    color_guide_html = ' '.join([
-        f'<span style="display:inline-block; background-color:{color}; border-radius:50%; width:10px; height:10px; margin-right:5px; vertical-align: middle;"></span> {name}'
-        for name, color in SYSTEM_COLORS.items()
-    ])
-    st.markdown(f"**Guía de colores:** {color_guide_html}", unsafe_allow_html=True)
+    if COL_SISTEMA in map_data_valid.columns:
+        map_data_valid = map_data_valid.assign(_sistema=map_data_valid[COL_SISTEMA].map(classify_sistema))
+    else:
+        map_data_valid = map_data_valid.assign(_sistema='Otros')
 
-    with st.spinner('Construyendo mapa interactivo...'):
-        m = folium.Map(location=[-33.45694, -70.64827], zoom_start=5)
-        marker_cluster = MarkerCluster().add_to(m)
-        location_counts, map_data_processed = procesar_datos_mapa(map_data_valid)
-
-        for _, row in location_counts.iterrows():
-            lat, lon = row['coords']
-            count = row['count']
-            establecimientos = map_data_processed.loc[
-                (map_data_processed[COL_LAT] == lat) & (map_data_processed[COL_LON] == lon)
-            ]
-            popup_text, color = crear_texto_popup(establecimientos, count)
-
-            folium.CircleMarker(
-                location=[lat, lon],
-                radius=8,
-                popup=folium.Popup(popup_text, max_width=300),
-                color=color,
-                fill=True,
-                fill_color=color,
-                fill_opacity=0.7
-            ).add_to(marker_cluster)
-
-        folium_static(m, width=1000, height=600)
+    fig_map = px.scatter_map(
+        map_data_valid,
+        lat=COL_LAT,
+        lon=COL_LON,
+        color='_sistema',
+        color_discrete_map=SYSTEM_COLORS,
+        hover_name=COL_NOMBRE if COL_NOMBRE in map_data_valid.columns else None,
+        hover_data={
+            COL_TIPO_ESTAB: True,
+            COL_COMUNA: True,
+            COL_REGION: True,
+            '_sistema': False,
+            COL_LAT: False,
+            COL_LON: False,
+        },
+        category_orders={'_sistema': ['Público', 'Privado', 'Otros']},
+        zoom=3.5,
+        center={"lat": -33.45, "lon": -70.65},
+        map_style="open-street-map",
+    )
+    fig_map.update_traces(marker=dict(size=6, opacity=0.7))
+    fig_map.update_layout(
+        height=650,
+        margin=dict(l=0, r=0, t=0, b=0),
+        legend=dict(
+            title="Sistema de Salud",
+            orientation="h", yanchor="top", y=0.99, xanchor="left", x=0.01,
+            bgcolor="rgba(255,255,255,0.8)",
+        ),
+    )
+    st.plotly_chart(fig_map, use_container_width=True)
 
 
 # --- Main App Logic ---
@@ -315,9 +279,7 @@ with tab1:
     st.subheader('Establecimientos por Región y Sistema de Salud')
     if all(c in df_filtered.columns for c in [COL_REGION, COL_SISTEMA]):
         df_plot = df_filtered.copy()
-        df_plot[COL_SISTEMA] = df_plot[COL_SISTEMA].apply(
-            lambda x: x if x in SYSTEM_COLORS else 'Otros'
-        )
+        df_plot[COL_SISTEMA] = df_plot[COL_SISTEMA].map(classify_sistema)
 
         region_sistema = pd.crosstab(df_plot[COL_REGION], df_plot[COL_SISTEMA]).reset_index()
         for col in SYSTEM_COLORS.keys():
