@@ -121,24 +121,36 @@ def visualizar_mapa(map_data):
     else:
         map_data_valid = map_data_valid.assign(_sistema='Otros')
 
-    fig_map = px.scatter_map(
-        map_data_valid,
-        lat=COL_LAT,
-        lon=COL_LON,
-        color='_sistema',
-        color_discrete_map=SYSTEM_COLORS,
-        hover_name=COL_NOMBRE if COL_NOMBRE in map_data_valid.columns else None,
-        hover_data={
-            col: True for col in [COL_TIPO_ESTAB, COL_COMUNA, COL_REGION]
-            if col in map_data_valid.columns
-        } | {'_sistema': False, COL_LAT: False, COL_LON: False},
-        category_orders={'_sistema': ['Público', 'Privado', 'Otros']},
-        zoom=3.5,
-        center={"lat": -33.45, "lon": -70.65},
-        map_style="open-street-map",
-    )
-    fig_map.update_traces(marker=dict(size=6, opacity=0.7))
+    # Build hover text
+    hover_parts = []
+    if COL_NOMBRE in map_data_valid.columns:
+        hover_parts.append('<b>' + map_data_valid[COL_NOMBRE].astype(str) + '</b>')
+    if COL_TIPO_ESTAB in map_data_valid.columns:
+        hover_parts.append(map_data_valid[COL_TIPO_ESTAB].astype(str))
+    if COL_COMUNA in map_data_valid.columns and COL_REGION in map_data_valid.columns:
+        hover_parts.append(map_data_valid[COL_COMUNA].astype(str) + ', ' + map_data_valid[COL_REGION].astype(str))
+    hover_text = '<br>'.join(hover_parts) if hover_parts else None
+
+    fig_map = go.Figure()
+
+    for sistema, color in SYSTEM_COLORS.items():
+        df_sys = map_data_valid[map_data_valid['_sistema'] == sistema]
+        if df_sys.empty:
+            continue
+        fig_map.add_trace(go.Scattermap(
+            lat=df_sys[COL_LAT],
+            lon=df_sys[COL_LON],
+            mode='markers',
+            marker=dict(size=7, color=color, opacity=0.7),
+            name=sistema,
+            hovertext=hover_text[df_sys.index] if hover_text is not None else None,
+            hoverinfo='text',
+            cluster=dict(enabled=True, maxzoom=12, size=40, step=3,
+                         color=color, opacity=0.8),
+        ))
+
     fig_map.update_layout(
+        map=dict(style="open-street-map", center=dict(lat=-33.45, lon=-70.65), zoom=3.5),
         height=650,
         margin=dict(l=0, r=0, t=0, b=0),
         legend=dict(
