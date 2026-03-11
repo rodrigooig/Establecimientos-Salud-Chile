@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import matplotlib
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -42,10 +41,6 @@ DEPENDENCY_COLORS = {
     'Otro': '#95a5a6',
 }
 DEFAULT_PLOTLY_COLORS = px.colors.qualitative.Pastel
-
-# --- Matplotlib Configuration ---
-matplotlib.rcParams['font.family'] = 'DejaVu Sans'
-matplotlib.rcParams['axes.unicode_minus'] = False
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -134,13 +129,9 @@ def visualizar_mapa(map_data):
         color_discrete_map=SYSTEM_COLORS,
         hover_name=COL_NOMBRE if COL_NOMBRE in map_data_valid.columns else None,
         hover_data={
-            COL_TIPO_ESTAB: True,
-            COL_COMUNA: True,
-            COL_REGION: True,
-            '_sistema': False,
-            COL_LAT: False,
-            COL_LON: False,
-        },
+            col: True for col in [COL_TIPO_ESTAB, COL_COMUNA, COL_REGION]
+            if col in map_data_valid.columns
+        } | {'_sistema': False, COL_LAT: False, COL_LON: False},
         category_orders={'_sistema': ['Público', 'Privado', 'Otros']},
         zoom=3.5,
         center={"lat": -33.45, "lon": -70.65},
