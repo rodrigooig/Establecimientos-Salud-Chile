@@ -127,6 +127,51 @@ def normalize_columns(df):
 
     return df
 
+
+def add_plaza_edf(df, plazas_file='data/Plazas RM - Hoja 1.csv'):
+    """
+    Cruza los establecimientos con el dataset de Plazas EDF de la RM.
+    Agrega columna booleana PlazaEDF al dataframe.
+    """
+    if not os.path.exists(plazas_file):
+        print(f"Archivo de plazas no encontrado: {plazas_file}, saltando cruce.")
+        df['PlazaEDF'] = False
+        return df
+
+    def norm_match(s):
+        if pd.isna(s): return ''
+        s = str(s).upper().strip()
+        s = unicodedata.normalize('NFD', s)
+        s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+        return re.sub(r'\s+', ' ', s)
+
+    plazas = pd.read_csv(plazas_file)
+    print(f"\nCruzando con Plazas EDF ({len(plazas)} registros)...")
+
+    plazas['_n'] = plazas['ESTABLECIMIENTO'].apply(norm_match)
+    plazas['_c'] = plazas['COMUNA'].apply(norm_match)
+    plazas_keys = set(zip(plazas['_n'], plazas['_c']))
+
+    # Manual mappings for names that differ between datasets
+    manual_keys = {
+        (norm_match('CESFAM la Reina de Colina'), norm_match('Colina')),
+        (norm_match('Centro de Salud Familiar Alberto Bachelet Martínez'), norm_match('Conchalí')),
+        (norm_match('Centro de Salud Familiar Juan Pablo II de Lampa'), norm_match('Lampa')),
+        (norm_match('Centro de Salud Familiar Irene Frei de Cid'), norm_match('Quilicura')),
+        (norm_match('Centro de Salud Familiar Juan Pablo II ( Padre Hurtado)'), norm_match('Padre Hurtado')),
+    }
+    all_keys = plazas_keys | manual_keys
+
+    df['_n'] = df['EstablecimientoGlosa'].apply(norm_match)
+    df['_c'] = df['ComunaGlosa'].apply(norm_match)
+    df['PlazaEDF'] = df.apply(lambda r: (r['_n'], r['_c']) in all_keys, axis=1)
+    df = df.drop(columns=['_n', '_c'])
+
+    matched = df['PlazaEDF'].sum()
+    print(f"Plazas EDF cruzadas: {matched}/{len(plazas)}")
+    return df
+
+
 def main():
     input_file = 'data/establecimientos_20260310.csv'
     output_file = 'data/establecimientos_cleaned.csv'
@@ -174,6 +219,8 @@ def main():
         if 'RegionGlosa' in df.columns:
             print("\nEjemplos de regiones DESPUÉS de normalización:")
             print(df['RegionGlosa'].drop_duplicates().head(10).tolist())
+
+        df = add_plaza_edf(df)
 
         print(f"\nGuardando archivo limpio en {output_file}...")
         df.to_csv(output_file, sep=';', index=False, encoding='utf-8')
