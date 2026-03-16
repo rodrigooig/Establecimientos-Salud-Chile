@@ -24,6 +24,7 @@ COL_DEPENDENCIA = "DependenciaAdministrativa"
 COL_TIPO_ATENCION = "TipoAtencionEstabGlosa"
 COL_TIPO_URGENCIA = "TipoUrgencia"
 COL_PLAZA_EDF = "PlazaEDF"
+COL_SERVICIO_EDF = "ServicioSaludEDF"
 
 SYSTEM_COLORS = {'Público': '#27ae60', 'Privado': '#c0392b', 'Otros': '#7f8c8d'}
 COMPLEXITY_COLORS = {
@@ -223,7 +224,7 @@ if not df.empty:
     st.sidebar.markdown("### Filtros")
 
     if st.sidebar.button("Reiniciar Filtros"):
-        keys_to_reset = ['regiones_sel', 'tipos_sel', 'sistemas_sel', 'estados_sel', 'dependencia_sel', 'plaza_edf_sel']
+        keys_to_reset = ['regiones_sel', 'tipos_sel', 'sistemas_sel', 'estados_sel', 'dependencia_sel', 'plaza_edf_sel', 'servicio_edf_sel']
         for key in keys_to_reset:
             st.session_state[key] = []
         st.rerun()
@@ -243,14 +244,27 @@ if not df.empty:
     # Plaza EDF filter
     if COL_PLAZA_EDF in df.columns:
         st.sidebar.markdown("---")
+        st.sidebar.markdown("#### Plazas EDF (RM)")
         plaza_edf_filter = st.sidebar.checkbox(
-            "Solo Plazas EDF (RM)",
+            "Solo Plazas EDF",
             value=st.session_state.get('plaza_edf_sel', False),
             help="Filtrar solo establecimientos con plazas EDF disponibles en la Región Metropolitana",
             key='plaza_edf_sel'
         )
         if plaza_edf_filter:
             df_filtered = df_filtered[df_filtered[COL_PLAZA_EDF] == True]
+
+        if COL_SERVICIO_EDF in df.columns:
+            servicios_disponibles = sorted(df[df[COL_PLAZA_EDF] == True][COL_SERVICIO_EDF].unique().tolist())
+            servicio_sel = st.sidebar.multiselect(
+                "Servicio de Salud EDF",
+                options=servicios_disponibles,
+                default=st.session_state.get('servicio_edf_sel', []),
+                help="Filtrar por Servicio de Salud de las plazas EDF",
+                key='servicio_edf_sel'
+            )
+            if servicio_sel:
+                df_filtered = df_filtered[df_filtered[COL_SERVICIO_EDF].isin(servicio_sel)]
 
     st.sidebar.markdown("---")
     st.sidebar.markdown(f"**Establecimientos filtrados:** {len(df_filtered):,}")

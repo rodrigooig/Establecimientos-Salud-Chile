@@ -150,21 +150,38 @@ def add_plaza_edf(df, plazas_file='data/Plazas RM - Hoja 1.csv'):
 
     plazas['_n'] = plazas['ESTABLECIMIENTO'].apply(norm_match)
     plazas['_c'] = plazas['COMUNA'].apply(norm_match)
-    plazas_keys = set(zip(plazas['_n'], plazas['_c']))
+
+    # Build lookup: (norm_name, norm_comuna) -> servicio de salud
+    plazas_lookup = {}
+    for _, row in plazas.iterrows():
+        plazas_lookup[(row['_n'], row['_c'])] = row['SERVICIO DE SALUD']
 
     # Manual mappings for names that differ between datasets
-    manual_keys = {
-        (norm_match('CESFAM la Reina de Colina'), norm_match('Colina')),
-        (norm_match('Centro de Salud Familiar Alberto Bachelet Martínez'), norm_match('Conchalí')),
-        (norm_match('Centro de Salud Familiar Juan Pablo II de Lampa'), norm_match('Lampa')),
-        (norm_match('Centro de Salud Familiar Irene Frei de Cid'), norm_match('Quilicura')),
-        (norm_match('Centro de Salud Familiar Juan Pablo II ( Padre Hurtado)'), norm_match('Padre Hurtado')),
+    manual_mappings = {
+        (norm_match('CESFAM la Reina de Colina'), norm_match('Colina')):
+            (norm_match('CENTRO DE SALUD FAMILIAR LA REINA'), norm_match('Colina')),
+        (norm_match('Centro de Salud Familiar Alberto Bachelet Martínez'), norm_match('Conchalí')):
+            (norm_match('CENTRO DE SALUD FAMILIAR ALBERTO BACHELET'), norm_match('Conchalí')),
+        (norm_match('Centro de Salud Familiar Juan Pablo II de Lampa'), norm_match('Lampa')):
+            (norm_match('CENTRO DE SALUD FAMILIAR JUAN PABLO SEGUNDO'), norm_match('Lampa')),
+        (norm_match('Centro de Salud Familiar Irene Frei de Cid'), norm_match('Quilicura')):
+            (norm_match('CENTRO DE SALUD FAMILIAR IRENE FREI'), norm_match('Quilicura')),
+        (norm_match('Centro de Salud Familiar Juan Pablo II ( Padre Hurtado)'), norm_match('Padre Hurtado')):
+            (norm_match('CENTRO DE SALUD FAMILIAR JUAN PABLO II'), norm_match('Padre Hurtado')),
     }
-    all_keys = plazas_keys | manual_keys
+    for estab_key, plaza_key in manual_mappings.items():
+        if plaza_key in plazas_lookup:
+            plazas_lookup[estab_key] = plazas_lookup[plaza_key]
 
     df['_n'] = df['EstablecimientoGlosa'].apply(norm_match)
     df['_c'] = df['ComunaGlosa'].apply(norm_match)
-    df['PlazaEDF'] = df.apply(lambda r: (r['_n'], r['_c']) in all_keys, axis=1)
+
+    def get_servicio(row):
+        key = (row['_n'], row['_c'])
+        return plazas_lookup.get(key, '')
+
+    df['PlazaEDF'] = df.apply(lambda r: (r['_n'], r['_c']) in plazas_lookup, axis=1)
+    df['ServicioSaludEDF'] = df.apply(get_servicio, axis=1)
     df = df.drop(columns=['_n', '_c'])
 
     matched = df['PlazaEDF'].sum()
